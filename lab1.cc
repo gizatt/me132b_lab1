@@ -28,8 +28,26 @@
 using namespace PlayerCc;
 using namespace std;
 
-struct occ_info * occ_info_test;
+/* Given range data / bearing data (of length n), figures out what
+    movements to perform, and stores them in speed / turnrate. Returns
+    nonzero values in speed and turnrate (always makes robot do
+    something) and true if everything is logically OK, or sets speed and
+    turnrate to zero and returns false if we somehow get dead-ended
+    or reach some logically invalid state. */
+bool figure_out_movement(double * speed, double * turnrate,
+    vector<double> range_data, vector<double> bearing_data, unsigned int n) {
 
+    /* placeholder; wall follow logic here */
+    *speed = 0.5;
+    *turnrate = 1.0;
+    return true;
+    
+}
+
+/* Main loop. Parses arguments, connects to player using port from arguments,
+    and repeatedly acquires state, calls function to figure out movement,
+    and applies that movement, writing info about all that out to logs
+    every iter. */
 int main(int argc, char **argv)
 {
     /* Calls the command line parser */
@@ -87,19 +105,21 @@ int main(int argc, char **argv)
             }
             time_step++;
             
-            /* Double check if there are any small laser scan values indicating that we're
-                impacting or about to impact an object. Abort if that is true. */
+            /* Double check if there are any small laser scan values indicating 
+                that we're impacting or about to impact an object. Abort if 
+                that is true. */
             for (int i=0; i<n; i++){
                 if (range_data[i] < 0.1){
-                    printf("Impact detected at bearing %f! Abort!\n", bearing_data[i]);
+                    printf("Impact detected at bearing %f! Abort!\n", 
+                           bearing_data[i]);
                     not_done = false;
                 }
             }
 
             /* Update movement */
             if (not_done){
-                speed = 1.0;
-                turnrate = 1.0;
+                not_done = figure_out_movement(&speed, &turnrate, range_data, 
+                                               bearing_data, n);
             } else {
                 speed = 0.0;
                 turnrate = 0.0;
