@@ -15,7 +15,7 @@ all: lab1
 
 lab1: lab1.cc $(common) $(rel)
 	echo Player: $(PLAYER_LIB)
-	g++ -o $@ $(PLAYER_LIB) lab1.cc $(common) 
+	g++ -o $@ $(PLAYER_LIB) lab1.cc $(common)
 
 
 clean:

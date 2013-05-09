@@ -114,15 +114,15 @@ int main(int argc, char **argv)
             
             /* If this is a multiple-of-five timestep, log out pose in csv:
                [ poseX, poseY, poseTheta ] */
+            /* And print occ map */
+            oc.printPPM(100, 40, pose);
+            printf("Speed: %f, turn: %f\n", speed, turnrate);
             if (time_step%5==0){
                 //Write out to our log file
                 fprintf(log_file, "%f, %f, %f", pose[POSE_X], pose[POSE_Y], 
                                                 pose[POSE_YAW]);
                 fprintf(log_file, "\n");
                 fflush(log_file);
-                /* And print occ map */
-                oc.printPPM(100, 40, pose);
-                printf("Speed: %f, turn: %f\n", speed, turnrate);
             }
             time_step++;
             
