@@ -4,7 +4,7 @@
  *
  *  Revision History:
  *   Gregory Izatt  20130509  Init revision, bringing code over from lab1.cc
- *
+ *   Tiffany Huang  20130509  Minor addition to wall following logic
  *
  * Description:
  *    Given a laser scan and an occupancy grid, figures out what movement
@@ -51,6 +51,21 @@ bool figure_out_movement(double * speed, double * turnrate,
     }
     return true;
     
+}
+
+/* Check to see if we're in a corner */
+bool next_to_corner(vector<double> range_data, double dist_thres)
+{
+    // Search laser data for range less that threshold
+    for (vector<double>::const_iterator it = range_data[0]; it != range_data[n]); it++)
+    {
+        // If an object closer than threshold value, wall nearby
+        if (*it < dist_thres)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 /* For all points in visible range, consider a 1/r^2 contribution
