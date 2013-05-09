@@ -30,7 +30,7 @@ class SimpleOccupancyGrid {
 		void savePPM(const char*filename) const;
 		
 		/* Prints out to console */
-		void printPPM(int x, int y) const;
+		void printPPM(int x, int y, const double pose[3]) const;
 		
 	private:
 

@@ -23,104 +23,14 @@
 #include <math.h>
 #include <vector>
 
+#include "lab1.h"
 #include "cmdline_parsing.h"
 #include "common_functions.h"
 #include "occupancy_grid.h"
-
-/* Maintain the occupancy grid? */
-#define USE_OCCUPANCY_GRID 1
-/* Max range we "see" when updating occ grid */
-#define OCC_MAX_RANGE (6.0)
-
-/* Inds into pose array for xpos, ypos, yaw */
-#define POSE_X 0
-#define POSE_Y 1
-#define POSE_YAW 2
-
-/* Max range we "see" when doing vector field */
-#define MAX_RANGE_DIST (2.0)
-/* Target movement speed when we're done figuring out movement */
-#define TARG_SPEED (0.6)
+#include "pathfind.h"
 
 using namespace PlayerCc;
 using namespace std;
-
-/* Given range data / bearing data (of length n), figures out what
-    movements to perform, and stores them in speed / turnrate. Returns
-    nonzero values in speed and turnrate (always makes robot do
-    something) and true if everything is logically OK, or sets speed and
-    turnrate to zero and returns false if we somehow get dead-ended
-    or reach some logically invalid state. */
-bool figure_out_movement(double * speed, double * turnrate,
-    vector<double> range_data, vector<double> bearing_data, unsigned int n) {
-
-    /* for all points in visible range, consider a 1/r^2 contribution
-       along the direction of that point -> next point if next point is
-       also valid, with attraction if farther than av desired dist
-       or repulsion if closer */
-    int i;
-    vector<double> dir(2); dir[0] = 0; dir[1] = 0;
-    double total_contribs = 0;
-    for (i=0; i<n-1; i++){
-        /* If this point & next point are valid dist */
-        if (range_data[i] < MAX_RANGE_DIST && range_data[i] > 0 
-            && range_data[i+1] < MAX_RANGE_DIST && range_data[i+1] > 0) {
-            /* Weight things that are on the right very low unless
-               they're really close & relevant */
-            double weight = 1.0;
-            if (bearing_data[i] < 0.0 && range_data[i] > 1.0){
-                weight = 0.01;
-            }
-            
-            /* This is a new contribution! Calculate along-edge and
-               out-of-edge contributions, scale down by dist^2 */
-            total_contribs += weight;
-            double x1 = range_data[i]*cosf(bearing_data[i]);
-            double y1 = range_data[i]*sinf(bearing_data[i]);
-            double x2 = range_data[i+1]*cosf(bearing_data[i+1]);
-            double y2 = range_data[i+1]*sinf(bearing_data[i+1]);
-            double norm = sqrtf(pow(x1-x2, 2) + pow(y1-y2, 2));
-            dir[0] += (x1 - x2)/norm/pow(range_data[i], 4) * weight;
-            dir[1] += (y1 - y2)/norm/pow(range_data[i], 4) * weight;
-            
-            /* As well as contribution along normal toward robot */
-            double n1 = (y1 - y2)/norm;
-            double n2 = -(x1 - x2)/norm;
-            dir[0] += 
-               n1 * (1.0 - range_data[i]) / pow(range_data[i], 4) * weight;
-            dir[1] += 
-               n2 * (1.0 - range_data[i]) / pow(range_data[i], 4) * weight;
-        }
-    }
-    /* normalize over the n contributions */
-    if (total_contribs > 0) {
-        /*
-        dir[0] /= total_contribs;
-        dir[1] /= total_contribs;
-        */
-        
-        /* scale what we care about */
-        dir[1] *= 2;
-        
-        double norm = sqrt(pow(dir[0], 2)+pow(dir[1], 2));
-        dir[0] /= norm; dir[1] /= norm;
-        dir[0] *= TARG_SPEED; dir[1] *= TARG_SPEED;
-    }
-    
-    /* That's the direction we want to go. Speed is total forward magnitude,
-       turnrate is the angle it deviates. */
-
-    /* placeholder; wall follow logic here */
-    *speed = dir[0];
-    *turnrate = dir[1] + 0.2;
-    if (*speed == 0) {
-        *speed = 0.3;
-        *turnrate = 0.2;
-    }
-    //printf("Speed: %f, turn: %f\n", *speed, *turnrate);
-    return true;
-    
-}
 
 /* Main loop. Parses arguments, connects to player using port from arguments,
     and repeatedly acquires state, calls function to figure out movement,
@@ -211,7 +121,7 @@ int main(int argc, char **argv)
                 fprintf(log_file, "\n");
                 fflush(log_file);
                 /* And print occ map */
-                oc.printPPM(79, 22);
+                oc.printPPM(100, 40, pose);
                 printf("Speed: %f, turn: %f\n", speed, turnrate);
             }
             time_step++;

@@ -41,7 +41,7 @@ SimpleOccupancyGrid::SimpleOccupancyGrid(
 
 	for(int i=0;i<this->ncells[0];i++)
 	for(int j=0;j<this->ncells[1];j++)
-		this->grid[i][j] = 0;
+		this->grid[i][j] = -5.0;
 	
 } 
 
@@ -73,7 +73,7 @@ bool SimpleOccupancyGrid::occupied(const double world[2]) const {
 void SimpleOccupancyGrid::markObstacle(const double p[2]) {
 	int c[2];
 	if(this->world2grid(p, c))
-		this->grid[c[0]][c[1]] = 1;
+		this->grid[c[0]][c[1]] += 1.0;
 }
 	
 void SimpleOccupancyGrid::addScan(
@@ -83,6 +83,11 @@ void SimpleOccupancyGrid::addScan(
 	const double *reading,
 	double max_range) 
 {
+    /* Decay everything first */
+	for(int i=0;i<this->ncells[0];i++)
+	for(int j=0;j<this->ncells[1];j++)
+		this->grid[i][j] = (this->grid[i][j]*0.99 - 0.01);
+    
 	for(int i=0;i<n;i++) {
 		if( !(reading[i] > 0)  || (reading[i] >= max_range))
 			continue;
@@ -119,26 +124,38 @@ void SimpleOccupancyGrid::savePPM(const char*filename) const {
 
 /* Prints out occupancy grid to console: downsamples so it fits in x chars
  * wide by y tall */
-void SimpleOccupancyGrid::printPPM(int x, int y) const {
+void SimpleOccupancyGrid::printPPM(int x, int y, const double pose[3]) const {
     int x_step = this->ncells[0] / x;
     int y_step = this->ncells[1] / y;
+    /* Figure out where pose turns out to be on the grid */
+    int grid[2];
+    bool draw_player = this->world2grid(pose, grid);
     int i_x, i_y, i_tx, i_ty;
     for (i_y = 0; i_y < this->ncells[1]; i_y += y_step){
         for (i_x = 0; i_x < this->ncells[0]; i_x += x_step){
-            bool occ = false;
+            double best_yet = -100;
+            bool this_is_player = false;
             for (i_ty = i_y; i_ty < i_y+y_step && i_ty < this->ncells[1]; 
                  i_ty++){
                 for (i_tx = i_x; i_tx < i_x+x_step && i_tx < this->ncells[0]; 
                     i_tx++){
-                    if (this->grid[i_tx][i_ty] > 0.0) {
-                        occ = true;
-                        break;  
+                    if (draw_player && i_ty == grid[1] && i_tx == grid[0]){
+                        this_is_player = true;
+                        break;
                     }
+                    if (this->grid[i_tx][i_ty] > best_yet)
+                        best_yet = this->grid[i_tx][i_ty];
                 }
-                if (occ) break;
+                if (this_is_player) break;
             }
-            if (occ)
-                printf("O");
+            if (this_is_player)
+                printf("X");
+            else if (best_yet > 4)
+                printf("8");
+            else if (best_yet > 1)
+                printf("+");
+            else if (best_yet > 0)
+                printf("-");
             else
                 printf(" ");
         }

@@ -50,7 +50,7 @@ pioneer2dx
 (
   name "robot"
   color "red"
-  pose [0 0 0 0]
+  pose [1 0 0 -2]
   sicklaser()
 )
 
