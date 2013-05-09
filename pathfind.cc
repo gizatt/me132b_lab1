@@ -54,17 +54,15 @@ bool figure_out_movement(double * speed, double * turnrate,
 }
 
 /* Check to see if we're in a corner */
-bool next_to_corner(vector<double> range_data, double dist_thres)
+bool next_to_corner(vector<double> range_data, vector<double> bearing_data, double dist_thres)
 {
     // Search laser data for range less that threshold
-    for (vector<double>::const_iterator it = range_data[0]; it != range_data[n]); it++)
+    for (int i=0; i<n; i++)
     {
-        // If an object closer than threshold value, wall nearby
-        if (*it < dist_thres)
-        {
-            return true;
-        }
-    }
+          if (-PI/4 <= bearing_data[i] <= 0 || 0 <= bearing_data[i] <= PI/4 && range_data[i] < dist_thres){
+                   return true;
+                }
+            }
     return false;
 }
 
