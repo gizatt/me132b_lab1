@@ -2,7 +2,8 @@
 PLAYER_LIB=`pkg-config --cflags --libs playerc++`
 
 common= common_functions.cc \
-		cmdline_parsing.cc
+		cmdline_parsing.cc \
+		occupancy_grid.cc
 
 bin=lab1
 

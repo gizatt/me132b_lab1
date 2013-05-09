@@ -4,7 +4,8 @@
  *
  *  Revision History:
  *   Gregory Izatt  20130507  Init revision, based on Lab2 code from ME132a
- *
+ *   Gregory Izatt  20130509  Importing occupancy grid example code supplied
+ *                             by TA's, in case we want to try that out
  *
  *
  * Description:
@@ -24,8 +25,21 @@
 
 #include "cmdline_parsing.h"
 #include "common_functions.h"
+#include "occupancy_grid.h"
 
+/* Maintain the occupancy grid? */
+#define USE_OCCUPANCY_GRID 1
+/* Max range we "see" when updating occ grid */
+#define OCC_MAX_RANGE (6.0)
+
+/* Inds into pose array for xpos, ypos, yaw */
+#define POSE_X 0
+#define POSE_Y 1
+#define POSE_YAW 2
+
+/* Max range we "see" when doing vector field */
 #define MAX_RANGE_DIST (2.0)
+/* Target movement speed when we're done figuring out movement */
 #define TARG_SPEED (0.6)
 
 using namespace PlayerCc;
@@ -103,7 +117,7 @@ bool figure_out_movement(double * speed, double * turnrate,
         *speed = 0.3;
         *turnrate = 0.2;
     }
-    printf("Speed: %f, turn: %f\n", *speed, *turnrate);
+    //printf("Speed: %f, turn: %f\n", *speed, *turnrate);
     return true;
     
 }
@@ -117,6 +131,15 @@ int main(int argc, char **argv)
     /* Calls the command line parser */
     parse_args(argc, argv);
     
+    /* Initialize occupancy grid */
+    #if USE_OCCUPANCY_GRID == 1
+	    double lower_left[2] = {-8, -8};
+	    double upper_right[2] = {8, 8};
+	    double cell_size = 0.05;
+
+      	SimpleOccupancyGrid oc(lower_left, upper_right, cell_size);
+  	#endif
+  	
     try {
         /* Initialize connection to player */
         PlayerClient robot(gHostname, gPort);
@@ -144,7 +167,9 @@ int main(int argc, char **argv)
         while(not_done) {
             // read from the proxies
             robot.Read();
-        
+            /* get pose */
+            double pose[3] = { pp.GetXPos(), pp.GetYPos(), pp.GetYaw() };
+            
             /* Read in laser scan range & bearing data */     
             unsigned int n = lp.GetCount();
             vector<double> range_data(n);
@@ -152,22 +177,7 @@ int main(int argc, char **argv)
             for(uint i=0; i<n; i++) {
                 range_data[i] = lp.GetRange(i);
                 bearing_data[i] = lp.GetBearing(i);
-            }
-    
-            /* Get our supposed pose information */
-            double xpos = pp.GetXPos();
-            double ypos = pp.GetYPos();
-            double thetapos = pp.GetYaw();      
-            
-            /* If this is a multiple-of-five timestep, log out pose in csv:
-               [ poseX, poseY, poseTheta ] */
-            if (time_step%5==0){
-                //Write out to our log file
-                fprintf(log_file, "%f, %f, %f", xpos, ypos, thetapos);
-                fprintf(log_file, "\n");
-                fflush(log_file);
-            }
-            time_step++;
+            }    
             
             /* Double check if there are any small laser scan values indicating 
                 that we're impacting or about to impact an object. Abort if 
@@ -179,7 +189,10 @@ int main(int argc, char **argv)
                     not_done = false;
                 }
             }
-
+            
+            /* Update occupancy map */
+            oc.addScan(pose, n, &bearing_data[0], &range_data[0], OCC_MAX_RANGE);
+            
             /* Update movement */
             if (not_done){
                 not_done = figure_out_movement(&speed, &turnrate, range_data, 
@@ -188,6 +201,21 @@ int main(int argc, char **argv)
                 speed = 0.0;
                 turnrate = 0.0;
             }
+            
+            /* If this is a multiple-of-five timestep, log out pose in csv:
+               [ poseX, poseY, poseTheta ] */
+            if (time_step%5==0){
+                //Write out to our log file
+                fprintf(log_file, "%f, %f, %f", pose[POSE_X], pose[POSE_Y], 
+                                                pose[POSE_YAW]);
+                fprintf(log_file, "\n");
+                fflush(log_file);
+                /* And print occ map */
+                oc.printPPM(79, 22);
+                printf("Speed: %f, turn: %f\n", speed, turnrate);
+            }
+            time_step++;
+            
             pp.SetSpeed(speed, turnrate);
         }
         
