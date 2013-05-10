@@ -40,10 +40,7 @@ SimpleOccupancyGrid::SimpleOccupancyGrid(
 	for(int i=0;i<this->ncells[0];i++) {
 		this->grid.push_back(vector<double>(this->ncells[1]));
 		this->cgrid.push_back(vector<double>(this->ncells[1]));
-		this->cgrid_owner.push_back(vector<vector<double> >(this->ncells[1]));
-		for (int j=0; j<this->ncells[1]; j++){
-		   this->cgrid_owner[i].push_back(vector<double>(2));
-		}
+		this->cgrid_owner.push_back(vector<double>(2*this->ncells[1]));
     }
     
 	for(int i=0;i<this->ncells[0];i++)
@@ -96,7 +93,6 @@ void SimpleOccupancyGrid::addScan(
 	for(int i=0;i<this->ncells[0];i++)
 	for(int j=0;j<this->ncells[1];j++) {
 		this->grid[i][j] = (this->grid[i][j]*0.99 - 0.03);
-		this->cgrid[i][j] = -1.0;
     }
     
 	for(int i=0;i<n;i++) {
@@ -111,8 +107,6 @@ void SimpleOccupancyGrid::addScan(
 		};
 		
 		this->markObstacle(p);
-		
-		
 	}
 		
 };
@@ -137,7 +131,8 @@ void SimpleOccupancyGrid::savePPM(const char*filename) const {
 
 /* Prints out occupancy grid to console: downsamples so it fits in x chars
  * wide by y tall */
-void SimpleOccupancyGrid::printPPM(int x, int y, const double pose[3]) const {
+void SimpleOccupancyGrid::printPPM(int x, int y, const double pose[3],
+                                   bool print_cgrid) const {
     int x_step = this->ncells[0] / x; x_step = x_step == 0 ? 1 : x_step;
     int y_step = this->ncells[1] / y; y_step = y_step == 0 ? 1 : y_step;
     /* Figure out where pose turns out to be on the grid */
@@ -147,6 +142,7 @@ void SimpleOccupancyGrid::printPPM(int x, int y, const double pose[3]) const {
     for (i_y = 0; i_y < this->ncells[1]; i_y += y_step){
         for (i_x = 0; i_x < this->ncells[0]; i_x += x_step){
             double best_yet = -100;
+            double best_yet_cgrid = -100;
             bool this_is_player = false;
             for (i_ty = i_y; i_ty < i_y+y_step && i_ty < this->ncells[1]; 
                  i_ty++){
@@ -158,6 +154,11 @@ void SimpleOccupancyGrid::printPPM(int x, int y, const double pose[3]) const {
                     }
                     if (this->grid[i_tx][i_ty] > best_yet)
                         best_yet = this->grid[i_tx][i_ty];
+                    if (this->cgrid[i_tx][i_ty] == CGRID_DANGER)
+                        best_yet_cgrid = CGRID_DANGER;
+                    else if (best_yet_cgrid != CGRID_DANGER && 
+                             this->cgrid[i_tx][i_ty] > 0)
+                        best_yet_cgrid = 1.0;
                 }
                 if (this_is_player) break;
             }
@@ -169,10 +170,57 @@ void SimpleOccupancyGrid::printPPM(int x, int y, const double pose[3]) const {
                 printf("+");
             else if (best_yet > 0)
                 printf("-");
+            else if (print_cgrid && best_yet_cgrid > 0)
+                printf("#");
+            else if (print_cgrid && best_yet_cgrid == CGRID_DANGER)
+                printf("!");
             else
                 printf(" ");
         }
         printf("\n");
     }
+}
+
+/* Given current state of occupancy grid, recomputes cgrid and cgrid
+   neighbors. WARNING: THIS MIGHT TAKE A WHILE. */
+void SimpleOccupancyGrid::updateCGrid(double danger_thresh, 
+                                      double traverse_max) {
+    /* Clear out cgrid */
+    int i, j, m, n;
+    for(int i=0;i<this->ncells[0];i++)
+	for(int j=0;j<this->ncells[1];j++) {
+		this->cgrid[i][j] = CGRID_INIT;
+    }
+    
+    /* For each point in the occupancy grid that is currently set... */
+    for(int i=0;i<this->ncells[0];i++) {
+	for(int j=0;j<this->ncells[1];j++) {
+		if (this->grid[i][j] > 0){
+		    /* It's set, so try to set all relevant points in cgrid.
+		       So, for every point in legitimate range... */
+		    for(int m=0;m<this->ncells[0];m++)
+	        for(int n=0;n<this->ncells[1];n++) {
+	            /* If it isn't already "danger" */
+	            if (cgrid[m][n] != CGRID_DANGER) {
+	                double dist = sqrtf( 
+	                   pow((double)(m-i)*this->size[0]/this->ncells[0], 2.0f) + 
+	                   pow((double)(n-j)*this->size[1]/this->ncells[1], 2.0f) );
+	                if (dist < danger_thresh){
+	                    /* not traversable, too close */
+	                    cgrid[m][n] = CGRID_DANGER;
+	                } else if (dist < traverse_max) {
+	                    /* traverseable! Set / maintain this state, and if
+	                       we're the closest person to have done this,
+	                       update us as the owner of this point! */
+	                    if (cgrid[m][n] == CGRID_INIT || cgrid[m][n] > dist){
+	                        cgrid[m][n] = dist;
+	                        cgrid_owner[m][2*n] = i;
+	                        cgrid_owner[m][2*n+1] = j;
+	                }
+	            }
+	        }}
+		}
+    }}
+    
 }
 

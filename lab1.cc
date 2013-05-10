@@ -45,7 +45,7 @@ int main(int argc, char **argv)
     #if USE_OCCUPANCY_GRID == 1
 	    double lower_left[2] = {-4.0, -4.0};
 	    double upper_right[2] = {4.0, 4.0};
-	    double cell_size = 0.01;
+	    double cell_size = 0.05;
 
       	SimpleOccupancyGrid oc(lower_left, upper_right, cell_size);
   	#endif
@@ -102,7 +102,7 @@ int main(int argc, char **argv)
             
             /* Update occupancy map */
             oc.addScan(pose, n, &bearing_data[0], &range_data[0], OCC_MAX_RANGE);
-            
+
             /* Update movement */
             if (not_done){
                 not_done = figure_out_movement(&speed, &turnrate, range_data, 
@@ -115,7 +115,7 @@ int main(int argc, char **argv)
             /* If this is a multiple-of-five timestep, log out pose in csv:
                [ poseX, poseY, poseTheta ] */
             /* And print occ map */
-            oc.printPPM(100, 40, pose);
+            oc.printPPM(79, 23, pose, true);
             printf("Speed: %f, turn: %f\n", speed, turnrate);
             if (time_step%5==0){
                 //Write out to our log file
@@ -124,6 +124,9 @@ int main(int argc, char **argv)
                 fprintf(log_file, "\n");
                 fflush(log_file);
             }
+            if (time_step%10==0)
+                /* Update the cgrid */
+                oc.updateCGrid(0.25, 0.5);
             time_step++;
             
             pp.SetSpeed(speed, turnrate);
