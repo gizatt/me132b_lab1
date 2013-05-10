@@ -147,9 +147,9 @@ bool apply_vector_field_old(vector<double> range_data,
             double n1 = (y1 - y2)/norm;
             double n2 = -(x1 - x2)/norm;
             dir[0] += 
-               n1 * (.5 - range_data[i]) / pow(range_data[i], 4) * weight;
+               n1 * (1.0 - range_data[i]) / pow(range_data[i], 4) * weight;
             dir[1] += 
-               n2 * (.5 - range_data[i]) / pow(range_data[i], 4) * weight;
+               n2 * (1.0 - range_data[i]) / pow(range_data[i], 4) * weight;
         }
     }
     /* normalize over the n contributions */
@@ -167,4 +167,61 @@ bool apply_vector_field_old(vector<double> range_data,
         dir[0] *= TARG_SPEED; dir[1] *= TARG_SPEED;
     }
     return true;
+}
+
+/* Given a current position, a pivot, and an up-to-date occupancy grid,
+   figure next vertex to visit. Renders c-occupancy grid (which contains
+   state about how what locations we want to be in), and then, if we're
+   not presently in a traversable location, routes to closest traversable
+   position; otherwise, figures out direction we'd like to go (by taking
+   vector orthogonal to our point - closest obstacle vert, in direction
+   counterclockwise around pivot) and goes as far in that general direction
+   as we can. */
+bool route_given_occupancy(double curr_pose[2], 
+    double return_vert[2], double pivot[2], 
+    SimpleOccupancyGrid oc){
+    /* Update c-occupancy grid */
+    oc.updateCGrid(DANGER_MAX_THRESH, TRAVERSE_MAX_THRESH);
+    
+    /* If our present position isn't traversable... */
+    if (oc.cgrid_state(curr_pose) <= 0){
+        /* Find closest traversable point to current pose and go there */
+        return oc.get_closest_traversable(curr_pose, return_vert);
+    } else {
+        /* We're in reasonable territory, so figure out our direction
+           we kind of want to head */
+        double dir_to_go[2];
+        if (!oc.get_next_dir(curr_pose, pivot, dir_to_go)) return false;
+        double orig_theta = atan2(dir_to_go[1], dir_to_go[0]);
+        /* Now that we have the direction, step over theta range we care
+           for offsetting from that dir */
+        double theta;
+        double best_dist_so_far = -1;
+        double final_pos[2];
+        for (theta=THETA_SEARCH_BEGIN; theta < THETA_SEARCH_END;
+             theta+=THETA_SEARCH_DTHETA){
+            /* In this direction offset from  the suggested next direction,
+               scan along until we hit a not-traversable block; if dist between
+               final position and current position is bigger than we've found
+               so far, this is our new best candidate for point to move to. */
+            dir_to_go[0] = cos(orig_theta + theta);
+            dir_to_go[1] = sin(orig_theta + theta);
+            double i = 0;
+            double curr_pos[2];
+            do {
+                curr_pos[0] = curr_pose[0] + dir_to_go[0]*i;
+                curr_pos[1] = curr_pose[1] + dir_to_go[1]*i;
+                i += THETA_PATHTRACE_STEP;
+            } while (oc.cgrid_state(curr_pos) > 0);
+            i -= THETA_PATHTRACE_STEP;
+            if (i > best_dist_so_far){
+                best_dist_so_far = i;
+                final_pos[0] = curr_pose[0] 
+                             + dir_to_go[0]*i*THETA_PATHTRACE_FINALDISTMOD;
+                final_pos[1] = curr_pose[1] 
+                             + dir_to_go[1]*i*THETA_PATHTRACE_FINALDISTMOD;
+            }
+        }
+    }
+    
 }
