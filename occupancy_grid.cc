@@ -86,7 +86,7 @@ void SimpleOccupancyGrid::addScan(
     /* Decay everything first */
 	for(int i=0;i<this->ncells[0];i++)
 	for(int j=0;j<this->ncells[1];j++)
-		this->grid[i][j] = (this->grid[i][j]*0.99 - 0.01);
+		this->grid[i][j] = (this->grid[i][j]*0.99 - 0.03);
     
 	for(int i=0;i<n;i++) {
 		if( !(reading[i] > 0)  || (reading[i] >= max_range))
@@ -125,8 +125,8 @@ void SimpleOccupancyGrid::savePPM(const char*filename) const {
 /* Prints out occupancy grid to console: downsamples so it fits in x chars
  * wide by y tall */
 void SimpleOccupancyGrid::printPPM(int x, int y, const double pose[3]) const {
-    int x_step = this->ncells[0] / x;
-    int y_step = this->ncells[1] / y;
+    int x_step = this->ncells[0] / x; x_step = x_step == 0 ? 1 : x_step;
+    int y_step = this->ncells[1] / y; y_step = y_step == 0 ? 1 : y_step;
     /* Figure out where pose turns out to be on the grid */
     int grid[2];
     bool draw_player = this->world2grid(pose, grid);

@@ -83,9 +83,9 @@ bool apply_vector_field_old(vector<double> range_data,
             double n1 = (y1 - y2)/norm;
             double n2 = -(x1 - x2)/norm;
             dir[0] += 
-               n1 * (1.0 - range_data[i]) / pow(range_data[i], 4) * weight;
+               n1 * (.5 - range_data[i]) / pow(range_data[i], 4) * weight;
             dir[1] += 
-               n2 * (1.0 - range_data[i]) / pow(range_data[i], 4) * weight;
+               n2 * (.5 - range_data[i]) / pow(range_data[i], 4) * weight;
         }
     }
     /* normalize over the n contributions */

@@ -14,8 +14,8 @@
 #define POSE_YAW 2
 
 /* Max range we "see" when doing vector field */
-#define MAX_RANGE_DIST (1.5)
+#define MAX_RANGE_DIST (1.0)
 /* Target movement speed when we're done figuring out movement */
-#define TARG_SPEED (0.6)
+#define TARG_SPEED (0.3)
 
 #define PI (3.141592653)

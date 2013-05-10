@@ -15,7 +15,7 @@ include "sick.inc"
 
 
 # size of the world in meters
-# size [16 16]
+# size [3.6 4.0]
 
 # set the resolution of the underlying raytrace model in meters
 quit_time 3600
@@ -28,7 +28,7 @@ resolution 0.02
 window
 ( 
   size [ 695.000 693.000 ]
-  scale 40.0 
+  scale 300.0 
   center [-0.010 -0.040] 
   rotate [ 0 0 ]
 
@@ -40,7 +40,7 @@ floorplan
 ( 
   name "lab"
   bitmap "lab.png"
-  size [16.000 16.000 0.800]
+  size [3.6 4.0 0.800]
   pose [0 0 0 0]
 )
 
@@ -50,7 +50,7 @@ pioneer2dx
 (
   name "robot"
   color "red"
-  pose [1 0 0 -2]
+  pose [0.2 0 0 -2]
   sicklaser()
 )
 
