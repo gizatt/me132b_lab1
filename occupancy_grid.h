@@ -5,6 +5,10 @@
 
 using namespace std;
 
+#define CGRID_INIT (-1.0)
+#define CGRID_DANGER (-2.0)
+
+
 class SimpleOccupancyGrid {
 	
 	public:
@@ -30,8 +34,11 @@ class SimpleOccupancyGrid {
 		void savePPM(const char*filename) const;
 		
 		/* Prints out to console */
-		void printPPM(int x, int y, const double pose[3]) const;
+		void printPPM(int x, int y, const double pose[3], 
+		              bool print_cgrid) const;
 		
+		void updateCGrid(double danger_thresh, double traverse_max);
+                                      
 	private:
 
 		/** Converts world coordinates to grid coordinates.
@@ -47,7 +54,7 @@ class SimpleOccupancyGrid {
 		/* And a container for c_occ map */
 		vector< vector<double> > cgrid;
 		/* And the owner of each point */
-		vector< vector< vector<double> > > cgrid_owner;
+		vector< vector<double> > cgrid_owner;
 };
 
 #endif
