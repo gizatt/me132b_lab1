@@ -4,7 +4,7 @@
  *
  *  Revision History:
  *   Gregory Izatt  20130509  Init revision, bringing code over from lab1.cc
- *
+ *   Tiffany Huang  20130509  Added go_to_point function
  *
  * Description:
  *    Given a laser scan and an occupancy grid, figures out what movement
@@ -51,6 +51,35 @@ bool figure_out_movement(double * speed, double * turnrate,
     }
     return true;
     
+}
+
+// This function implements a go to function based on inputs of where the robot
+// destination is and the current pose. It returns the direction and speed to go
+// by reference.
+int go_to_point(double goal_x, double goal_y,
+                double robot_x, double robot_y, double robot_theta,
+                double* r_dot, double* theta_dot)
+{
+    Point goal = Point(goal_x, goal_y); // Turn into point for convenience
+    // Get distance and direction to goal
+    double dr = goal.distance_to(robot_x, robot_y);
+    double dtheta = goal.angle_to(robot_x, robot_y, robot_theta);
+    // Don't move if more than 22.5 degrees off, otherwise scale speed with log
+    // of angle but cap at dr to prevent overshoot
+    *r_dot = (abs(dtheta) < PI/8) * dr * -log(abs(dtheta)) / 10.0;
+    *r_dot = (dr < *r_dot) ? dr : *r_dot;
+    *r_dot = (MAX_SPEED < *r_dot) ? MAX_SPEED : *r_dot;
+    // Turn angle is simply direction offset
+    *theta_dot = dtheta / 2;    // Slow rotation to prevent overshoot
+    
+    // Check that the turn rate is greater than the minimum if turning in place
+    if (abs(*theta_dot) < MIN_TURN_RATE && abs(*r_dot) < SPEED_EPS &&
+        abs(*theta_dot) > ANGLE_EPS)
+    {
+        // Set to min turn rate if below
+        *theta_dot = MIN_TURN_RATE * ((*theta_dot > 0.0) * 2 - 1);
+    }
+    return 0;   // Dummy return value
 }
 
 /* For all points in visible range, consider a 1/r^2 contribution
