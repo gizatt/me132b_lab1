@@ -6,7 +6,8 @@
  * Rev history:
  *  Gregory Izatt    20130509    Import from ME132b site; adding a "print
  *                                occ grid to console" function on a whim
- *
+ *  Gregory Izatt    20130509    Adding c-occ grid, which is extended outward
+ *                                from regular grid.
  */
 
 #include <assert.h>
@@ -36,14 +37,22 @@ SimpleOccupancyGrid::SimpleOccupancyGrid(
 	this->size[0] = this->ncells[0] * cell_size;
 	this->size[1] = this->ncells[1] * cell_size;
 	
-	for(int i=0;i<this->ncells[0];i++)
+	for(int i=0;i<this->ncells[0];i++) {
 		this->grid.push_back(vector<double>(this->ncells[1]));
-
+		this->cgrid.push_back(vector<double>(this->ncells[1]));
+		this->cgrid_owner.push_back(vector<vector<double> >(this->ncells[1]));
+		for (int j=0; j<this->ncells[1]; j++){
+		   this->cgrid_owner[i].push_back(vector<double>(2));
+		}
+    }
+    
 	for(int i=0;i<this->ncells[0];i++)
-	for(int j=0;j<this->ncells[1];j++)
+	for(int j=0;j<this->ncells[1];j++){
 		this->grid[i][j] = -5.0;
+		this->cgrid[i][j] = -1.0;
+    }
 	
-} 
+}
 
 bool SimpleOccupancyGrid::world2grid(const double world[2], int grid[2]) const {
 	for(int i=0;i<2;i++) {
@@ -85,8 +94,10 @@ void SimpleOccupancyGrid::addScan(
 {
     /* Decay everything first */
 	for(int i=0;i<this->ncells[0];i++)
-	for(int j=0;j<this->ncells[1];j++)
+	for(int j=0;j<this->ncells[1];j++) {
 		this->grid[i][j] = (this->grid[i][j]*0.99 - 0.03);
+		this->cgrid[i][j] = -1.0;
+    }
     
 	for(int i=0;i<n;i++) {
 		if( !(reading[i] > 0)  || (reading[i] >= max_range))
@@ -100,6 +111,8 @@ void SimpleOccupancyGrid::addScan(
 		};
 		
 		this->markObstacle(p);
+		
+		
 	}
 		
 };

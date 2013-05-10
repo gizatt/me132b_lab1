@@ -6,7 +6,7 @@
  *   Gregory Izatt  20130507  Init revision, based on Lab2 code from ME132a
  *   Gregory Izatt  20130509  Importing occupancy grid example code supplied
  *                             by TA's, in case we want to try that out
- *
+ *   Team           20130509  Working on everything
  *
  * Description:
  *    Given a Pioneer 2 robot system, equiped with two primary wheels,

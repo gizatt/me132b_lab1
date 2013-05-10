@@ -83,11 +83,11 @@ int go_to_point(double goal_x, double goal_y,
 }
 
 /* This function sets a turn rate to make the robot turn to a desired angle. */
-int turn_(double turn_theta, turn_dir, double robot_theta,
+int turn(double goal_theta, int turn_dir, double robot_theta,
                 double* r_dot, double* theta_dot)
 {
-    Point goal = Point(goal_x, goal_y); // Turn into point for convenience
-    double dtheta = turn_theta;
+    double d_theta, d_theta_2;
+    d_theta = goal_theta;
     // Don't move
     *r_dot = 0;
     
@@ -95,10 +95,6 @@ int turn_(double turn_theta, turn_dir, double robot_theta,
     // First, make robot_theta positive to make math easier
     if (robot_theta < 0)
         robot_theta = (2 * PI + robot_theta);
-    
-    // Avoid divide by zero problems
-    if ((goal_x - robot_x) == 0)
-        goal_theta = 0;
         
     // Make the goal angle positive to make math easier
     if (goal_theta < 0)

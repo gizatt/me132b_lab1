@@ -43,6 +43,11 @@ class SimpleOccupancyGrid {
 		int size[2];
 	
 		vector< vector<double> > grid;
+		
+		/* And a container for c_occ map */
+		vector< vector<double> > cgrid;
+		/* And the owner of each point */
+		vector< vector< vector<double> > > cgrid_owner;
 };
 
 #endif
