@@ -45,7 +45,7 @@ int main(int argc, char **argv)
     #if USE_OCCUPANCY_GRID == 1
 	    double lower_left[2] = {-4.0, -4.0};
 	    double upper_right[2] = {4.0, 4.0};
-	    double cell_size = 0.05;
+	    double cell_size = 0.08;
 
       	SimpleOccupancyGrid oc(lower_left, upper_right, cell_size);
   	#endif
@@ -106,7 +106,7 @@ int main(int argc, char **argv)
             /* Update movement */
             if (not_done){
                 not_done = figure_out_movement(&speed, &turnrate, range_data, 
-                                               bearing_data, n, pose, oc, true);
+                                               bearing_data, n, pose, oc, false);
 
             } else {
                 speed = 0.0;

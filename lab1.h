@@ -12,15 +12,15 @@
 /* Max range from obstacle we want to be, in meters */
 #define TRAVERSE_MAX_THRESH (0.7)
 /* Theta search range */
-#define THETA_SEARCH_BEGIN (-0.5)
-#define THETA_SEARCH_END (0.5)
-#define THETA_SEARCH_DTHETA (0.01)
+#define THETA_SEARCH_BEGIN (-0.7)
+#define THETA_SEARCH_END (0.7)
+#define THETA_SEARCH_DTHETA (0.05)
 /* Step distance in meters along path trace; must be < cell size */
 #define THETA_PATHTRACE_STEP (0.01)
 /* Percent of final long-path to take before stopping */
 #define THETA_PATHTRACE_FINALDISTMOD (0.9)  
 /* And max distance we move at once */
-#define THETA_PATHTRACE_MAXDIST (0.6)
+#define THETA_PATHTRACE_MAXDIST (1.0)
 
 /* Inds into pose array for xpos, ypos, yaw */
 #define POSE_X 0
@@ -28,9 +28,9 @@
 #define POSE_YAW 2
 
 /* Max range we "see" when doing vector field */
-#define MAX_RANGE_DIST (1.0)
+#define MAX_RANGE_DIST (2.0)
 /* Target movement speed when we're done figuring out movement */
-#define TARG_SPEED (0.3)
+#define TARG_SPEED (0.2)
 /* Weight around pivot */
 #define NORMAL_PIVOT_WEIGHT (5.0)
 /* Weight toward pivot */

@@ -35,8 +35,8 @@ const int get_point = 3;
 const int using_vector_field = 4;
  
 // declare constants used for robot odometry
-const double dist_error = .05;
-const double theta_error = .05;
+const double dist_error = .08;
+const double theta_error = .10;
  
 /* Pivot around which we always try to round */
 double pivot[2];
@@ -78,15 +78,17 @@ bool figure_out_movement(double * speed, double * turnrate,
     switch(state) {
         // scan everything
         case start :
+             printf("START STATE\n");
              goals[2] = pose[2];
              *turnrate = MAX_TURN_RATE;
              *speed = 0;
              if (use_vector_field) {
                  state = using_vector_field;
              } else {
+                 printf("SCAN STATE\n");
                  state = scanning;
+                 starting_scan = true;
              }
-             starting_scan = true;
              /* and set pivot */
              i = ceil(n/2);
              theta = pose[2] + bearing_data[i];
@@ -97,9 +99,9 @@ bool figure_out_movement(double * speed, double * turnrate,
             apply_vector_field_old(range_data, bearing_data, n, dir, pivot, pose);
             *speed = dir[0];
             *turnrate = dir[1];
-            if (*speed == 0) {
+            if (*speed <= 0.05) {
                 *speed = 0;
-                *turnrate = 0.5;
+                *turnrate = 0.6;
             }
             printf("Moving [%f, %f]\n", *speed, *turnrate);
             break;
@@ -107,8 +109,14 @@ bool figure_out_movement(double * speed, double * turnrate,
         case scanning : 
             // If we've reached the angle we want, get the
             // point to go to
-            if (fabs(pose[2] - goals[2]) <= theta_error && !starting_scan) { 
+            printf("pose %f, goal %f\n", pose[2], goals[2]);
+            if (!starting_scan && 
+                (fabs(pose[2] - goals[2] + 2*PI) <= theta_error || 
+                 fabs(pose[2] - goals[2] - 2*PI) <= theta_error ||
+                 fabs(pose[2] - goals[2]) <= theta_error )) { 
                 state = get_point;
+                *speed = 0;
+                *turnrate = 0;
             }
             else if(fabs(pose[2] - goals[2]) > theta_error) { 
                 starting_scan = false;
@@ -127,11 +135,15 @@ bool figure_out_movement(double * speed, double * turnrate,
                 *speed = 0;
                 starting_scan = true;
                 state = scanning;
+                printf("SCAN STATE\n");
             }
             break;
         // get a new point and change state to be moving
-        case get_point : route_given_occupancy(pose, goals, pivot, oc); // get the next point
-            state = move;         
+        case get_point : 
+            printf("CALCULATING...");
+            route_given_occupancy(pose, goals, pivot, oc); // get the next point
+            state = move;  
+            printf("MOVE STATE\n");       
             break;
         // something broke
         default : return false;
@@ -180,6 +192,7 @@ int turn(double goal_theta, int turn_dir, double robot_theta,
     double d_theta, d_theta_2;
     d_theta = goal_theta;
     // Don't move
+
     *r_dot = 0;
     
     // Get change in theta
@@ -223,10 +236,10 @@ bool apply_vector_field_old(vector<double> range_data,
         /* If this point & next point are valid dist */
         if (range_data[i] < MAX_RANGE_DIST && range_data[i] > 0 
             && range_data[i+1] < MAX_RANGE_DIST && range_data[i+1] > 0) {
-            double weight = pow(bearing_data[i] + 2, 2);
+            double weight = 1; /*pow(bearing_data[i] + 2, 2); */
             /* This is a new contribution! Calculate along-edge and
                out-of-edge contributions, scale down by dist^2 */
-            total_contribs += weight;
+            total_contribs += 1.5;
             
             
             double x1 = range_data[i]*cosf(bearing_data[i]);
@@ -234,10 +247,10 @@ bool apply_vector_field_old(vector<double> range_data,
             double x2 = range_data[i+1]*cosf(bearing_data[i+1]);
             double y2 = range_data[i+1]*sinf(bearing_data[i+1]);
             double norm = sqrtf(pow(x1-x2, 2) + pow(y1-y2, 2));
-            /*
-            dir[0] += (x1 - x2)/norm/pow(range_data[i], 4) * weight;
-            dir[1] += (y1 - y2)/norm/pow(range_data[i], 4) * weight;
-            */
+            
+            dir[0] += (x1 - x2)/norm/pow(range_data[i], 4) * weight / 2;
+            dir[1] += (y1 - y2)/norm/pow(range_data[i], 4) * weight / 2;
+            
             
             /* As well as contribution along normal toward robot */
             double n1 = (y1 - y2)/norm;
@@ -278,7 +291,7 @@ bool apply_vector_field_old(vector<double> range_data,
     dir[1] += NORMAL_PIVOT_WEIGHT*sinf(theta);
     
     /* scale what we care about */
-    dir[1] *= 4;
+    dir[1] *= 2;
     
     double norm = sqrt(pow(dir[0], 2)+pow(dir[1], 2));
     if (norm)
@@ -305,46 +318,48 @@ bool route_given_occupancy(double curr_pose[2],
     /* If our present position isn't traversable... */
     if (oc.cgrid_state(curr_pose) <= 0){
         /* Find closest traversable point to current pose and go there */
-        return oc.get_closest_traversable(curr_pose, return_vert);
-    } else {
-        /* We're in reasonable territory, so figure out our direction
-           we kind of want to head */
-        double dir_to_go[2];
-        if (!oc.get_next_dir(curr_pose, pivot, dir_to_go)) return false;
-        double orig_theta = atan2(dir_to_go[1], dir_to_go[0]);
-        /* Now that we have the direction, step over theta range we care
-           for offsetting from that dir */
-        double theta;
-        double best_dist_so_far = -1;
-        double final_pos[2];
-        for (theta=THETA_SEARCH_BEGIN; theta < THETA_SEARCH_END;
-             theta+=THETA_SEARCH_DTHETA){
-            /* In this direction offset from  the suggested next direction,
-               scan along until we hit a not-traversable block; if dist between
-               final position and current position is bigger than we've found
-               so far, this is our new best candidate for point to move to. */
-            dir_to_go[0] = cosf(orig_theta + theta);
-            dir_to_go[1] = sinf(orig_theta + theta);
-            double i = 0;
-            double curr_pos[2];
-            do {
-                curr_pos[0] = curr_pose[0] + dir_to_go[0]*i;
-                curr_pos[1] = curr_pose[1] + dir_to_go[1]*i;
-                i += THETA_PATHTRACE_STEP;
-            } while (oc.cgrid_state(curr_pos) > 0.0);
-            i -= THETA_PATHTRACE_STEP;
-            if (i > best_dist_so_far){
-                best_dist_so_far = i;
-                i = i > THETA_PATHTRACE_MAXDIST ? THETA_PATHTRACE_MAXDIST : i;
-                final_pos[0] = curr_pose[0] 
-                             + dir_to_go[0]*i*THETA_PATHTRACE_FINALDISTMOD;
-                final_pos[1] = curr_pose[1] 
-                             + dir_to_go[1]*i*THETA_PATHTRACE_FINALDISTMOD;
-            }
-        }
-        return_vert[0] = final_pos[0];
-        return_vert[1] = final_pos[1];
-        printf("sending to %f, %f\n", return_vert[0], return_vert[1]);
-        return true;
+        if (!oc.get_closest_traversable(curr_pose, return_vert))
+            return false;
+        if (sqrtf( pow(return_vert[0], 2) + pow(return_vert[1], 2)) > 0.08)
+            return true;
     }
+    /* We're in reasonable territory, so figure out our direction
+       we kind of want to head */
+    double dir_to_go[2];
+    if (!oc.get_next_dir(curr_pose, pivot, dir_to_go)) return false;
+    double orig_theta = atan2(dir_to_go[1], dir_to_go[0]);
+    /* Now that we have the direction, step over theta range we care
+       for offsetting from that dir */
+    double theta;
+    double best_dist_so_far = -1;
+    double final_pos[2];
+    for (theta=THETA_SEARCH_BEGIN; theta < THETA_SEARCH_END;
+         theta+=THETA_SEARCH_DTHETA){
+        /* In this direction offset from  the suggested next direction,
+           scan along until we hit a not-traversable block; if dist between
+           final position and current position is bigger than we've found
+           so far, this is our new best candidate for point to move to. */
+        dir_to_go[0] = cosf(orig_theta + theta);
+        dir_to_go[1] = sinf(orig_theta + theta);
+        double i = 0;
+        double curr_pos[2];
+        do {
+            curr_pos[0] = curr_pose[0] + dir_to_go[0]*i;
+            curr_pos[1] = curr_pose[1] + dir_to_go[1]*i;
+            i += THETA_PATHTRACE_STEP;
+        } while (oc.cgrid_state(curr_pos) > 0.0);
+        i -= THETA_PATHTRACE_STEP;
+        if (i > best_dist_so_far){
+            best_dist_so_far = i;
+            i = i > THETA_PATHTRACE_MAXDIST ? THETA_PATHTRACE_MAXDIST : i;
+            final_pos[0] = curr_pose[0] 
+                         + dir_to_go[0]*i*THETA_PATHTRACE_FINALDISTMOD;
+            final_pos[1] = curr_pose[1] 
+                         + dir_to_go[1]*i*THETA_PATHTRACE_FINALDISTMOD;
+        }
+    }
+    return_vert[0] = final_pos[0];
+    return_vert[1] = final_pos[1];
+    printf("sending to %f, %f\n", return_vert[0], return_vert[1]);
+    return true;
 }
