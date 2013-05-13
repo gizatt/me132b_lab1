@@ -32,6 +32,9 @@ const int get_point = 3;
 const double dist_error = .02;
 const double theta_error = .05;
  
+/* Pivot around which we always try to round */
+double pivot[2];
+
 /* Prototypes */
 bool apply_vector_field_old(vector<double> range_data,
    vector<double> bearing_data, unsigned int n, vector<double>& dir);
@@ -53,9 +56,10 @@ void findPoint(double * goals);
     or reach some logically invalid state. */
 bool figure_out_movement(double * speed, double * turnrate, int * state,
     vector<double> range_data, vector<double> bearing_data, unsigned int n,
-    double * pose, double * goals) {
+    double * pose, double * goals, SimpleOccupancyGrid& oc) {
     Point goal;
     double dr;
+    int i; double theta;
     
     // Act based on state
     switch(*state) {
@@ -65,13 +69,18 @@ bool figure_out_movement(double * speed, double * turnrate, int * state,
              *turnrate = MAX_TURN_RATE;
              *speed = 0;
              *state = scanning;
+             /* and set pivot */
+             i = ceil(n/2);
+             theta = pose[2] + bearing_data[i];
+		     pivot[0] = pose[0] + cosf(theta) * range_data[i];
+		     pivot[1] = pose[1] + sinf(theta) * range_data[i];
              break;
         case scanning : 
             // If we've reached the angle we want, get the
             // point to go to
             if (fabs(pose[2] - goals[2]) <= theta_error) { 
                 *state = get_point;
-            }            
+            }
             break;
         // move to a point
         case move : 
@@ -100,8 +109,13 @@ bool figure_out_movement(double * speed, double * turnrate, int * state,
     
 }
 void findPoint(double * goals) {
-    goals[0] = int(goals[0] + 1) % 6;
-    goals[1] = int(goals[1] + 1) % 6;
+    if (goals[0] == 0.0) {
+        goals[0] = 1.0;
+        goals[1] = 0.0;
+    } else {
+        goals[0] = 0.0;
+        goals[1] = 0.0;
+    }
 }
 // This function implements a go to function based on inputs of where the robot
 // destination is and the current pose. It returns the direction and speed to go
