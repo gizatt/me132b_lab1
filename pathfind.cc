@@ -37,6 +37,9 @@ const int get_point = 3;
 const double dist_error = .02;
 const double theta_error = .05;
  
+/* Pivot around which we always try to round */
+double pivot[2];
+
 /* Prototypes */
 bool apply_vector_field_old(vector<double> range_data,
    vector<double> bearing_data, unsigned int n, vector<double>& dir);
@@ -58,9 +61,10 @@ void findPoint(double * goals);
     or reach some logically invalid state. */
 bool figure_out_movement(double * speed, double * turnrate,
     vector<double> range_data, vector<double> bearing_data, unsigned int n,
-    double * pose) {
+    double * pose, SimpleOccupancyGrid& oc) {
     Point goal;
     double dr;
+    int i; double theta;
     
     // Act based on state
     switch(state) {
@@ -71,6 +75,11 @@ bool figure_out_movement(double * speed, double * turnrate,
              *speed = 0;
              starting_scan = true;
              state = scanning;
+             /* and set pivot */
+             i = ceil(n/2);
+             theta = pose[2] + bearing_data[i];
+		     pivot[0] = pose[0] + cosf(theta) * range_data[i];
+		     pivot[1] = pose[1] + sinf(theta) * range_data[i];
              break;
         case scanning : 
             // If we've reached the angle we want, get the

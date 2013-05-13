@@ -105,8 +105,9 @@ int main(int argc, char **argv)
 
             /* Update movement */
             if (not_done){
-                not_done = figure_out_movement(&speed, &turnrate, range_data, 
-                                               bearing_data, n, pose);
+                not_done = figure_out_movement(&speed, &turnrate, &state, range_data, 
+                                               bearing_data, n, pose, oc);
+
             } else {
                 speed = 0.0;
                 turnrate = 0.0;
