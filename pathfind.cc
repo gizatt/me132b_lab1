@@ -289,16 +289,12 @@ bool route_given_occupancy(double curr_pose[2],
             i -= THETA_PATHTRACE_STEP;
             if (i > best_dist_so_far){
                 best_dist_so_far = i;
+                i = i > THETA_PATHTRACE_MAXDIST ? THETA_PATHTRACE_MAXDIST : i;
                 final_pos[0] = curr_pose[0] 
                              + dir_to_go[0]*i*THETA_PATHTRACE_FINALDISTMOD;
                 final_pos[1] = curr_pose[1] 
                              + dir_to_go[1]*i*THETA_PATHTRACE_FINALDISTMOD;
             }
-        }
-        if (best_dist_so_far*THETA_PATHTRACE_FINALDISTMOD > 
-              THETA_PATHTRACE_MAXDIST){
-            final_pos[0] *= THETA_PATHTRACE_MAXDIST / best_dist_so_far;
-            final_pos[1] *= THETA_PATHTRACE_MAXDIST / best_dist_so_far;
         }
         return_vert[0] = final_pos[0];
         return_vert[1] = final_pos[1];
