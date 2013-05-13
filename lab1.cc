@@ -119,8 +119,8 @@ int main(int argc, char **argv)
             /* If this is a multiple-of-five timestep, log out pose in csv:
                [ poseX, poseY, poseTheta ] */
             /* And print occ map */
-            oc.printPPM(79, 23, pose, true);
-            printf("Speed: %f, turn: %f\n", speed, turnrate);
+            // oc.printPPM(79, 23, pose, true);
+            // printf("Speed: %f, turn: %f\n", speed, turnrate);
             if (time_step%5==0){
                 //Write out to our log file
                 fprintf(log_file, "%f, %f, %f", pose[POSE_X], pose[POSE_Y], 
@@ -128,9 +128,6 @@ int main(int argc, char **argv)
                 fprintf(log_file, "\n");
                 fflush(log_file);
             }
-            if (time_step%10==0)
-                /* Update the cgrid */
-                oc.updateCGrid(0.25, 0.5);
             time_step++;
             
             pp.SetSpeed(speed, turnrate);

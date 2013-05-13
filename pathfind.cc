@@ -48,6 +48,11 @@ int turn(double goal_theta, int turn_dir, double robot_theta,
                 
 void findPoint(double * goals);
  
+ bool route_given_occupancy(double curr_pose[2], 
+    double return_vert[2], double pivot[2], 
+    SimpleOccupancyGrid& oc);
+    
+    
 /* Given range data / bearing data (of length n), figures out what
     movements to perform, and stores them in speed / turnrate. Returns
     nonzero values in speed and turnrate (always makes robot do
@@ -97,14 +102,13 @@ bool figure_out_movement(double * speed, double * turnrate, int * state,
             }
             break;
         // get a new point and change state to be moving
-        case get_point : findPoint(goals); // get the next point
+        case get_point : route_given_occupancy(pose, goals, pivot, oc); // get the next point
             *state = move;         
             break;
         // something broke
         default : return false;
             break;    
     }
-         
     return true;
     
 }
@@ -243,10 +247,10 @@ bool apply_vector_field_old(vector<double> range_data,
    as we can. */
 bool route_given_occupancy(double curr_pose[2], 
     double return_vert[2], double pivot[2], 
-    SimpleOccupancyGrid oc){
+    SimpleOccupancyGrid& oc){
     /* Update c-occupancy grid */
     oc.updateCGrid(DANGER_MAX_THRESH, TRAVERSE_MAX_THRESH);
-    
+    oc.printPPM(79, 23, curr_pose, true);
     /* If our present position isn't traversable... */
     if (oc.cgrid_state(curr_pose) <= 0){
         /* Find closest traversable point to current pose and go there */
@@ -268,15 +272,15 @@ bool route_given_occupancy(double curr_pose[2],
                scan along until we hit a not-traversable block; if dist between
                final position and current position is bigger than we've found
                so far, this is our new best candidate for point to move to. */
-            dir_to_go[0] = cos(orig_theta + theta);
-            dir_to_go[1] = sin(orig_theta + theta);
+            dir_to_go[0] = cosf(orig_theta + theta);
+            dir_to_go[1] = sinf(orig_theta + theta);
             double i = 0;
             double curr_pos[2];
             do {
                 curr_pos[0] = curr_pose[0] + dir_to_go[0]*i;
                 curr_pos[1] = curr_pose[1] + dir_to_go[1]*i;
                 i += THETA_PATHTRACE_STEP;
-            } while (oc.cgrid_state(curr_pos) > 0);
+            } while (oc.cgrid_state(curr_pos) > 0.0);
             i -= THETA_PATHTRACE_STEP;
             if (i > best_dist_so_far){
                 best_dist_so_far = i;
@@ -286,6 +290,14 @@ bool route_given_occupancy(double curr_pose[2],
                              + dir_to_go[1]*i*THETA_PATHTRACE_FINALDISTMOD;
             }
         }
+        if (best_dist_so_far*THETA_PATHTRACE_FINALDISTMOD > 
+              THETA_PATHTRACE_MAXDIST){
+            final_pos[0] *= THETA_PATHTRACE_MAXDIST / best_dist_so_far;
+            final_pos[1] *= THETA_PATHTRACE_MAXDIST / best_dist_so_far;
+        }
+        return_vert[0] = final_pos[0];
+        return_vert[1] = final_pos[1];
+        printf("sending to %f, %f\n", return_vert[0], return_vert[1]);
+        return true;
     }
-    
 }

@@ -186,7 +186,6 @@ void SimpleOccupancyGrid::printPPM(int x, int y, const double pose[3],
 void SimpleOccupancyGrid::updateCGrid(double danger_thresh, 
                                       double traverse_max) {
     /* Clear out cgrid */
-    int i, j, m, n;
     for(int i=0;i<this->ncells[0];i++)
 	for(int j=0;j<this->ncells[1];j++) {
 		this->cgrid[i][j] = CGRID_INIT;
@@ -195,27 +194,28 @@ void SimpleOccupancyGrid::updateCGrid(double danger_thresh,
     /* For each point in the occupancy grid that is currently set... */
     for(int i=0;i<this->ncells[0];i++) {
 	for(int j=0;j<this->ncells[1];j++) {
-		if (this->grid[i][j] > 0){
+		if (this->grid[i][j] > 0.0){
 		    /* It's set, so try to set all relevant points in cgrid.
 		       So, for every point in legitimate range... */
-		    for(int m=0;m<this->ncells[0];m++)
+		    for(int m=0;m<this->ncells[0];m++) {
 	        for(int n=0;n<this->ncells[1];n++) {
 	            /* If it isn't already "danger" */
-	            if (cgrid[m][n] != CGRID_DANGER) {
+	            if (this->cgrid[m][n] != CGRID_DANGER) {
 	                double dist = sqrtf( 
-	                   pow((double)(m-i)*this->size[0]/this->ncells[0], 2.0f) + 
-	                   pow((double)(n-j)*this->size[1]/this->ncells[1], 2.0f) );
+	                   pow(((double)(m-i))*this->size[0]/this->ncells[0], 2.0f) + 
+	                   pow(((double)(n-j))*this->size[1]/this->ncells[1], 2.0f) );
 	                if (dist < danger_thresh){
 	                    /* not traversable, too close */
-	                    cgrid[m][n] = CGRID_DANGER;
+	                    this->cgrid[m][n] = CGRID_DANGER;
 	                } else if (dist < traverse_max) {
 	                    /* traverseable! Set / maintain this state, and if
 	                       we're the closest person to have done this,
 	                       update us as the owner of this point! */
-	                    if (cgrid[m][n] == CGRID_INIT || cgrid[m][n] > dist){
-	                        cgrid[m][n] = dist;
-	                        cgrid_owner[m][2*n] = i;
-	                        cgrid_owner[m][2*n+1] = j;
+	                    if (this->cgrid[m][n] == CGRID_INIT || this->cgrid[m][n] > dist){
+	                        this->cgrid[m][n] = dist;
+	                        this->cgrid_owner[m][2*n] = (double)i;
+	                        this->cgrid_owner[m][2*n+1] = (double)j;
+	                    }
 	                }
 	            }
 	        }}
@@ -238,7 +238,6 @@ double SimpleOccupancyGrid::cgrid_state(const double world[2]) const {
    temp, if any */
 bool SimpleOccupancyGrid::get_closest_traversable(double curr_pose[2], 
        double temp[2]){
-    int i, j;
     int c[2];
     bool found_one = false;
 	if(this->world2grid(curr_pose, c)) {
@@ -246,17 +245,17 @@ bool SimpleOccupancyGrid::get_closest_traversable(double curr_pose[2],
         double best_dist = 100000000;
         for(int i=0;i<this->ncells[0];i++) {
 	    for(int j=0;j<this->ncells[1];j++) {  
-	        if (cgrid[i][j] > 0)
+	        if (cgrid[i][j] > 0){
 	            found_one = true;
                 double dist = sqrtf( 
-                   pow((double)(c[0]-i)*this->size[0]/this->ncells[0], 2.0f) + 
-                   pow((double)(c[1]-j)*this->size[1]/this->ncells[1], 2.0f) );
+                   pow(((double)(c[0]-i))*this->size[0]/this->ncells[0], 2.0f) + 
+                   pow(((double)(c[1]-j))*this->size[1]/this->ncells[1], 2.0f) );
                 if (dist < best_dist){
-                    dist = best_dist;
-                    temp[0] = i;
-                    temp[1] = j;
+                    best_dist = dist;
+                    temp[0] = (double)i;
+                    temp[1] = (double)j;
                 }
-            
+            }
 	    }}
 	    /* If we found one, convert temp to world coords */
 	    if (found_one){
@@ -264,35 +263,58 @@ bool SimpleOccupancyGrid::get_closest_traversable(double curr_pose[2],
 	                  + this->origin[0];
 	        temp[1] = temp[1]*this->size[1]/this->ncells[1] 
 	                  + this->origin[1];
+	        printf("Reportin at %f, %f\n", temp[0], temp[1]);
+	    } else {
+	        printf("Couldn't find traversable cell.\n");
+	        temp[0] = curr_pose[0];
+	        temp[1] = curr_pose[1];
 	    }
 	} else {
 		// outside? no closest point.
+	    printf("Closest_traversable passed noninternior point.\n");
+	    temp[0] = curr_pose[0];
+	    temp[1] = curr_pose[1];
 	}
     return found_one;
 }
 
 /* Given a position that is guaranteed to be in a traversable cell,
    return the direction we'd want to go, going around pivot.*/
-bool SimpleOccupancyGrid::get_next_dir(double curr_pose[2], double pivot[2],
-                                           double return_dir[2]){
+bool SimpleOccupancyGrid::get_next_dir(double * curr_pose, double * pivot,
+                                           double * return_dir){
     /* Figure out the idfference between pose and parent point */
     double diff[2];
     int c[2];
+    printf("Start: %f, %f -> %f, %f ::: ", diff[0], diff[1], this->cgrid_owner[c[0]][2*c[1]], this->cgrid_owner[c[0]][2*c[1]+1]);
     if (!this->world2grid(curr_pose, c)) return false;
-    diff[0] = curr_pose[0] - this->cgrid_owner[c[0]][2*c[1]];
-    diff[1] = curr_pose[1] - this->cgrid_owner[c[0]][2*c[1]+1];     
+    diff[0] = curr_pose[0] - (this->cgrid_owner[c[0]][2*c[1]]
+                             *this->size[0]/this->ncells[0] + this->origin[0]);
+    diff[1] = curr_pose[1] - (this->cgrid_owner[c[0]][2*c[1]+1]
+                             *this->size[1]/this->ncells[1] + this->origin[1]);  
+    printf("To closest pt: %f, %f\n", diff[0], diff[1]);  
     /* Dir in axis we car about is perp to that */
     double tmp = diff[0];
     diff[0] = diff[1];
     diff[1] = -tmp;
-    /* Invert if it's not pointing roughly toward pivot */
-    if (diff[0]*pivot[0] + diff[1]*pivot[1] < 0){
+    printf("Norm: %f, %f\n", diff[0], diff[1]);
+    /* Invert if it's not going around pivot */
+    double diff_pivot[2]; diff_pivot[0] = pivot[0] - curr_pose[0];
+                          diff_pivot[1] = pivot[1] - curr_pose[1];
+    tmp = diff_pivot[0];
+    diff_pivot[0] = diff_pivot[1];
+    diff_pivot[1] = -tmp;
+    /* now diff_pivot is normal to robot-pivot vector */
+    if (diff[0]*diff_pivot[0] + diff[1]*diff_pivot[1] < 0){
+        /* invert if our direction isn't going that way */
         diff[0] *= -1.0;
         diff[1] *= -1.0;
     }
+    printf("Inverted Norm: %f, %f\n", diff[0], diff[1]);
     /* And normalize */
     double tot = sqrtf( pow(diff[0], 2) + pow(diff[1], 2) );
     diff[0] /= tot;
     diff[1] /= tot;
+    return_dir[0] = diff[0];
+    return_dir[1] = diff[1];
     return true;
 }
