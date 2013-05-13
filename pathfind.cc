@@ -21,10 +21,29 @@
 #include "common_functions.h"
 #include "occupancy_grid.h"
 #include "pathfind.h"
+
+// declare state constants
+const int start = 0;
+const int scanning = 1;
+const int move = 2;
+const int get_point = 3;
+ 
+// declare constants used for robot odometry
+const double dist_error = .02;
+const double theta_error = .05;
  
 /* Prototypes */
 bool apply_vector_field_old(vector<double> range_data,
    vector<double> bearing_data, unsigned int n, vector<double>& dir);
+
+int go_to_point(double goal_x, double goal_y,
+                double robot_x, double robot_y, double robot_theta,
+                double* r_dot, double* theta_dot);
+                
+int turn(double goal_theta, int turn_dir, double robot_theta,
+                double* r_dot, double* theta_dot);
+                
+void findPoint(double * goals);
  
 /* Given range data / bearing data (of length n), figures out what
     movements to perform, and stores them in speed / turnrate. Returns
@@ -32,27 +51,58 @@ bool apply_vector_field_old(vector<double> range_data,
     something) and true if everything is logically OK, or sets speed and
     turnrate to zero and returns false if we somehow get dead-ended
     or reach some logically invalid state. */
-bool figure_out_movement(double * speed, double * turnrate,
-    vector<double> range_data, vector<double> bearing_data, unsigned int n) {
-
-    vector<double> dir(2);
-    if (!apply_vector_field_old(range_data, bearing_data, n, dir))
-        return false;
-         
-    /* That's the direction we want to go. Speed is total forward magnitude,
-       turnrate is the angle it deviates. */
-
-    /* placeholder; wall follow logic here */
-    *speed = dir[0];
-    *turnrate = dir[1] + 0.2;
-    if (*speed == 0) {
-        *speed = 0;
-        *turnrate = 0.5;
+bool figure_out_movement(double * speed, double * turnrate, int * state,
+    vector<double> range_data, vector<double> bearing_data, unsigned int n,
+    double * pose, double * goals) {
+    Point goal;
+    double dr;
+    
+    // Act based on state
+    switch(*state) {
+        // scan everything
+        case start :
+             goals[2] = pose[2];
+             *turnrate = MAX_TURN_RATE;
+             *speed = 0;
+             *state = scanning;
+             break;
+        case scanning : 
+            // If we've reached the angle we want, get the
+            // point to go to
+            if (fabs(pose[2] - goals[2]) <= theta_error) { 
+                *state = get_point;
+            }            
+            break;
+        // move to a point
+        case move : 
+            go_to_point(goals[0], goals[1], pose[0], pose[1], pose[2],
+                        speed, turnrate);
+            goal = Point(goals[0], goals[1]); // Turn into point for convenience
+            // Get distance and direction to goal
+            dr = goal.distance_to(pose[0], pose[1]);
+            if (dr <= dist_error) {
+                goals[2] = pose[2];
+                *turnrate = MAX_TURN_RATE;
+                *speed = 0;
+                *state = scanning;
+            }
+            break;
+        // get a new point and change state to be moving
+        case get_point : findPoint(goals); // get the next point
+            *state = move;         
+            break;
+        // something broke
+        default : return false;
+            break;    
     }
+         
     return true;
     
 }
-
+void findPoint(double * goals) {
+    goals[0] = int(goals[0] + 1) % 6;
+    goals[1] = int(goals[1] + 1) % 6;
+}
 // This function implements a go to function based on inputs of where the robot
 // destination is and the current pose. It returns the direction and speed to go
 // by reference.
@@ -66,15 +116,15 @@ int go_to_point(double goal_x, double goal_y,
     double dtheta = goal.angle_to(robot_x, robot_y, robot_theta);
     // Don't move if more than 22.5 degrees off, otherwise scale speed with log
     // of angle but cap at dr to prevent overshoot
-    *r_dot = (abs(dtheta) < PI/8) * dr * -log(abs(dtheta)) / 10.0;
+    *r_dot = (fabs(dtheta) < PI/8) * dr * -log(fabs(dtheta)) / 10.0;
     *r_dot = (dr < *r_dot) ? dr : *r_dot;
     *r_dot = (MAX_SPEED < *r_dot) ? MAX_SPEED : *r_dot;
     // Turn angle is simply direction offset
     *theta_dot = dtheta / 2;    // Slow rotation to prevent overshoot
     
     // Check that the turn rate is greater than the minimum if turning in place
-    if (abs(*theta_dot) < MIN_TURN_RATE && abs(*r_dot) < SPEED_EPS &&
-        abs(*theta_dot) > ANGLE_EPS)
+    if (fabs(*theta_dot) < MIN_TURN_RATE && fabs(*r_dot) < SPEED_EPS &&
+        fabs(*theta_dot) > ANGLE_EPS)
     {
         // Set to min turn rate if below
         *theta_dot = MIN_TURN_RATE * ((*theta_dot > 0.0) * 2 - 1);
@@ -109,8 +159,8 @@ int turn(double goal_theta, int turn_dir, double robot_theta,
     *theta_dot = turn_dir * d_theta / 2;    // Slow rotation to prevent overshoot
     
     // Check that the turn rate is greater than the minimum if turning in place
-    if (abs(*theta_dot) < MIN_TURN_RATE && abs(*r_dot) < SPEED_EPS &&
-        abs(*theta_dot) > ANGLE_EPS)
+    if (fabs(*theta_dot) < MIN_TURN_RATE && fabs(*r_dot) < SPEED_EPS &&
+        fabs(*theta_dot) > ANGLE_EPS)
     {
         // Set to min turn rate if below
         *theta_dot = MIN_TURN_RATE * ((*theta_dot > 0.0) * 2 - 1);

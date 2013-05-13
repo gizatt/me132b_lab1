@@ -6,10 +6,12 @@
 #ifndef H_PATHFIND
 #define H_PATHFIND
 
-bool figure_out_movement(double * speed, double * turnrate,
-    vector<double> range_data, vector<double> bearing_data, unsigned int n);
+bool figure_out_movement(double * speed, double * turnrate, int * state,
+    vector<double> range_data, vector<double> bearing_data, unsigned int n,
+    double * pose, double * goals);
     
 #define MIN_TURN_RATE 0.3
+#define MAX_TURN_RATE 0.6
 #define SPEED_EPS 0.01
 #define ANGLE_EPS 0.01
 #define MIN_WALL_DIST 0.1
