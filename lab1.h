@@ -10,7 +10,7 @@
 /* Min range from obstacle in meters*/
 #define DANGER_MAX_THRESH (0.3)
 /* Max range from obstacle we want to be, in meters */
-#define TRAVERSE_MAX_THRESH (0.5)
+#define TRAVERSE_MAX_THRESH (0.7)
 /* Theta search range */
 #define THETA_SEARCH_BEGIN (-0.5)
 #define THETA_SEARCH_END (0.5)
@@ -21,7 +21,7 @@
 #define THETA_PATHTRACE_FINALDISTMOD (0.9)  
 /* And max distance we move at once */
 #define THETA_PATHTRACE_MAXDIST (0.6)
- 
+
 /* Inds into pose array for xpos, ypos, yaw */
 #define POSE_X 0
 #define POSE_Y 1
@@ -31,5 +31,9 @@
 #define MAX_RANGE_DIST (1.0)
 /* Target movement speed when we're done figuring out movement */
 #define TARG_SPEED (0.3)
+/* Weight around pivot */
+#define NORMAL_PIVOT_WEIGHT (5.0)
+/* Weight toward pivot */
+#define TOWARD_PIVOT_WEIGHT (3.0)
 
 #define PI (3.141592653)

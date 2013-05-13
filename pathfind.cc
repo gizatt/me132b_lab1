@@ -32,6 +32,7 @@ const int start = 0;
 const int scanning = 1;
 const int move = 2;
 const int get_point = 3;
+const int using_vector_field = 4;
  
 // declare constants used for robot odometry
 const double dist_error = .02;
@@ -42,7 +43,8 @@ double pivot[2];
 
 /* Prototypes */
 bool apply_vector_field_old(vector<double> range_data,
-   vector<double> bearing_data, unsigned int n, vector<double>& dir);
+   vector<double> bearing_data, unsigned int n, vector<double>& dir,
+   double * pivot, double * curr_pose);
 
 int go_to_point(double goal_x, double goal_y,
                 double robot_x, double robot_y, double robot_theta,
@@ -66,10 +68,11 @@ void findPoint(double * goals);
     or reach some logically invalid state. */
 bool figure_out_movement(double * speed, double * turnrate,
     vector<double> range_data, vector<double> bearing_data, unsigned int n,
-    double * pose, SimpleOccupancyGrid& oc) {
+    double * pose, SimpleOccupancyGrid& oc, bool use_vector_field) {
     Point goal;
     double dr;
     int i; double theta;
+    vector <double> dir(2);
     
     // Act based on state
     switch(state) {
@@ -78,14 +81,29 @@ bool figure_out_movement(double * speed, double * turnrate,
              goals[2] = pose[2];
              *turnrate = MAX_TURN_RATE;
              *speed = 0;
+             if (use_vector_field) {
+                 state = using_vector_field;
+             } else {
+                 state = scanning;
+             }
              starting_scan = true;
-             state = scanning;
              /* and set pivot */
              i = ceil(n/2);
              theta = pose[2] + bearing_data[i];
 		     pivot[0] = pose[0] + cosf(theta) * range_data[i];
 		     pivot[1] = pose[1] + sinf(theta) * range_data[i];
              break;
+        case using_vector_field:
+            apply_vector_field_old(range_data, bearing_data, n, dir, pivot, pose);
+            *speed = dir[0];
+            *turnrate = dir[1];
+            if (*speed == 0) {
+                *speed = 0;
+                *turnrate = 0.5;
+            }
+            printf("Moving [%f, %f]\n", *speed, *turnrate);
+            break;
+            
         case scanning : 
             // If we've reached the angle we want, get the
             // point to go to
@@ -195,7 +213,8 @@ int turn(double goal_theta, int turn_dir, double robot_theta,
    also valid, with attraction if farther than a desired dist
    or repulsion if closer */
 bool apply_vector_field_old(vector<double> range_data,
-   vector<double> bearing_data, unsigned int n, vector<double>& dir){
+   vector<double> bearing_data, unsigned int n, vector<double>& dir,
+   double * pivot, double * curr_pose){
     int i;
     dir[0] = 0; dir[1] = 0;
     double total_contribs = 0;
@@ -208,13 +227,17 @@ bool apply_vector_field_old(vector<double> range_data,
             /* This is a new contribution! Calculate along-edge and
                out-of-edge contributions, scale down by dist^2 */
             total_contribs += weight;
+            
+            
             double x1 = range_data[i]*cosf(bearing_data[i]);
             double y1 = range_data[i]*sinf(bearing_data[i]);
             double x2 = range_data[i+1]*cosf(bearing_data[i+1]);
             double y2 = range_data[i+1]*sinf(bearing_data[i+1]);
             double norm = sqrtf(pow(x1-x2, 2) + pow(y1-y2, 2));
+            /*
             dir[0] += (x1 - x2)/norm/pow(range_data[i], 4) * weight;
             dir[1] += (y1 - y2)/norm/pow(range_data[i], 4) * weight;
+            */
             
             /* As well as contribution along normal toward robot */
             double n1 = (y1 - y2)/norm;
@@ -227,18 +250,41 @@ bool apply_vector_field_old(vector<double> range_data,
     }
     /* normalize over the n contributions */
     if (total_contribs > 0) {
-        /*
+        
         dir[0] /= total_contribs;
         dir[1] /= total_contribs;
-        */
-        
-        /* scale what we care about */
-        dir[1] *= 2;
-        
-        double norm = sqrt(pow(dir[0], 2)+pow(dir[1], 2));
-        dir[0] /= norm; dir[1] /= norm;
-        dir[0] *= TARG_SPEED; dir[1] *= TARG_SPEED;
     }
+        
+    /* Add in direction around pivot */
+    /* Invert if it's not going around pivot */
+    double diff_pivot[2]; diff_pivot[0] = pivot[0] - curr_pose[0];
+                          diff_pivot[1] = pivot[1] - curr_pose[1];
+    /* Add component toward pivot */
+    double theta = atan2(diff_pivot[1], diff_pivot[0]);
+    theta = theta - curr_pose[2];
+    dir[0] += TOWARD_PIVOT_WEIGHT*cosf(theta);
+    dir[1] += TOWARD_PIVOT_WEIGHT*sinf(theta);
+    
+    double tmp = diff_pivot[0];
+    diff_pivot[0] = diff_pivot[1];
+    diff_pivot[1] = -tmp;
+    /* now diff_pivot is normal to robot-pivot vector */
+    theta = atan2(diff_pivot[1], diff_pivot[0]);
+    theta = theta - curr_pose[2];
+    
+    /* Add on to curr pose and then get a normalized vector in
+       this direction */
+    dir[0] += NORMAL_PIVOT_WEIGHT*cosf(theta);
+    dir[1] += NORMAL_PIVOT_WEIGHT*sinf(theta);
+    
+    /* scale what we care about */
+    dir[1] *= 4;
+    
+    double norm = sqrt(pow(dir[0], 2)+pow(dir[1], 2));
+    if (norm)
+        dir[0] /= norm; dir[1] /= norm;
+    dir[0] *= TARG_SPEED; dir[1] *= TARG_SPEED;
+    
     return true;
 }
 
