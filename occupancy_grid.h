@@ -38,7 +38,10 @@ class SimpleOccupancyGrid {
 		              bool print_cgrid) const;
 		
 		void updateCGrid(double danger_thresh, double traverse_max);
-                                      
+        double cgrid_state(const double world[2]) const;        
+        bool get_closest_traversable(double curr_pose[2], double temp[2]);
+        bool get_next_dir(double curr_pose[2], double pivot[2],
+                                           double return_dir[2]);                  
 	private:
 
 		/** Converts world coordinates to grid coordinates.
