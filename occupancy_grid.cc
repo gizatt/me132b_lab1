@@ -303,12 +303,16 @@ bool SimpleOccupancyGrid::get_next_dir(double * curr_pose, double * pivot,
     tmp = diff_pivot[0];
     diff_pivot[0] = diff_pivot[1];
     diff_pivot[1] = -tmp;
+    
     /* now diff_pivot is normal to robot-pivot vector */
-    if (diff[0]*diff_pivot[0] + diff[1]*diff_pivot[1] < 0){
-        /* invert if our direction isn't going that way */
-        diff[0] *= -1.0;
-        diff[1] *= -1.0;
-    }
+//    if (diff[0]*diff_pivot[0] + diff[1]*diff_pivot[1] < 0){
+//        /* invert if our direction isn't going that way */
+//        diff[0] *= -1.0;
+//        diff[1] *= -1.0;
+//    }
+    diff[0] = diff_pivot[0];
+    diff[1] = diff_pivot[1];
+    
     printf("Inverted Norm: %f, %f\n", diff[0], diff[1]);
     /* And normalize */
     double tot = sqrtf( pow(diff[0], 2) + pow(diff[1], 2) );
