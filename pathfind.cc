@@ -34,7 +34,7 @@ const int move = 2;
 const int get_point = 3;
  
 // declare constants used for robot odometry
-const double dist_error = .02;
+const double dist_error = .05;
 const double theta_error = .05;
  
 /* Pivot around which we always try to round */
