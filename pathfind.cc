@@ -22,6 +22,11 @@
 #include "occupancy_grid.h"
 #include "pathfind.h"
 
+// declare state globals
+int state = 0;
+bool starting_scan = false;
+double * goals = new double[3];
+
 // declare state constants
 const int start = 0;
 const int scanning = 1;
@@ -59,21 +64,22 @@ void findPoint(double * goals);
     something) and true if everything is logically OK, or sets speed and
     turnrate to zero and returns false if we somehow get dead-ended
     or reach some logically invalid state. */
-bool figure_out_movement(double * speed, double * turnrate, int * state,
+bool figure_out_movement(double * speed, double * turnrate,
     vector<double> range_data, vector<double> bearing_data, unsigned int n,
-    double * pose, double * goals, SimpleOccupancyGrid& oc) {
+    double * pose, SimpleOccupancyGrid& oc) {
     Point goal;
     double dr;
     int i; double theta;
     
     // Act based on state
-    switch(*state) {
+    switch(state) {
         // scan everything
         case start :
              goals[2] = pose[2];
              *turnrate = MAX_TURN_RATE;
              *speed = 0;
-             *state = scanning;
+             starting_scan = true;
+             state = scanning;
              /* and set pivot */
              i = ceil(n/2);
              theta = pose[2] + bearing_data[i];
@@ -83,8 +89,11 @@ bool figure_out_movement(double * speed, double * turnrate, int * state,
         case scanning : 
             // If we've reached the angle we want, get the
             // point to go to
-            if (fabs(pose[2] - goals[2]) <= theta_error) { 
-                *state = get_point;
+            if (fabs(pose[2] - goals[2]) <= theta_error && !starting_scan) { 
+                state = get_point;
+            }
+            else if(fabs(pose[2] - goals[2]) > theta_error) { 
+                starting_scan = false;
             }
             break;
         // move to a point
@@ -98,12 +107,13 @@ bool figure_out_movement(double * speed, double * turnrate, int * state,
                 goals[2] = pose[2];
                 *turnrate = MAX_TURN_RATE;
                 *speed = 0;
-                *state = scanning;
+                starting_scan = true;
+                state = scanning;
             }
             break;
         // get a new point and change state to be moving
         case get_point : route_given_occupancy(pose, goals, pivot, oc); // get the next point
-            *state = move;         
+            state = move;         
             break;
         // something broke
         default : return false;
@@ -113,13 +123,8 @@ bool figure_out_movement(double * speed, double * turnrate, int * state,
     
 }
 void findPoint(double * goals) {
-    if (goals[0] == 0.0) {
-        goals[0] = 1.0;
-        goals[1] = 0.0;
-    } else {
-        goals[0] = 0.0;
-        goals[1] = 0.0;
-    }
+    goals[0] = int(goals[0] + 1) % 2;
+    goals[1] = 0;
 }
 // This function implements a go to function based on inputs of where the robot
 // destination is and the current pose. It returns the direction and speed to go

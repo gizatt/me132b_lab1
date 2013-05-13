@@ -6,7 +6,7 @@
  *   Gregory Izatt  20130507  Init revision, based on Lab2 code from ME132a
  *   Gregory Izatt  20130509  Importing occupancy grid example code supplied
  *                             by TA's, in case we want to try that out
- *   Team           20130509  Working on everything
+ *   Team           20130509/10  Working on everything
  *
  * Description:
  *    Given a Pioneer 2 robot system, equiped with two primary wheels,
@@ -28,10 +28,6 @@
 #include "common_functions.h"
 #include "occupancy_grid.h"
 #include "pathfind.h"
-
-// Create the global state info
-int state = 0;
-double * goals = new double[3];
 
 using namespace PlayerCc;
 using namespace std;
@@ -109,8 +105,9 @@ int main(int argc, char **argv)
 
             /* Update movement */
             if (not_done){
-                not_done = figure_out_movement(&speed, &turnrate, &state, range_data, 
-                                               bearing_data, n, pose, goals, oc);
+                not_done = figure_out_movement(&speed, &turnrate, range_data, 
+                                               bearing_data, n, pose, oc);
+
             } else {
                 speed = 0.0;
                 turnrate = 0.0;
