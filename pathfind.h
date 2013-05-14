@@ -10,8 +10,8 @@ bool figure_out_movement(double * speed, double * turnrate,
     vector<double> range_data, vector<double> bearing_data, unsigned int n,
     double * pose, SimpleOccupancyGrid& oc, bool use_vector_field);
     
-#define MIN_TURN_RATE 0.3
-#define MAX_TURN_RATE 0.4
+#define MIN_TURN_RATE 0.5
+#define MAX_TURN_RATE 0.6
 #define SPEED_EPS 0.01
 #define ANGLE_EPS 0.01
 #define MIN_WALL_DIST 0.1

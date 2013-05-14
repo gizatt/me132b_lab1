@@ -8,6 +8,8 @@
  *                                occ grid to console" function on a whim
  *  Gregory Izatt    20130509    Adding c-occ grid, which is extended outward
  *                                from regular grid.
+ *  Gregory Izatt    20130513    Much addition of helper functions for various
+ *                                pathfinding attempts
  */
 
 #include <assert.h>
@@ -15,6 +17,7 @@
 #include "occupancy_grid.h"
 #include <stdio.h>
 #include <fstream>
+#include "lab1.h"
 
 SimpleOccupancyGrid::SimpleOccupancyGrid(
 	const double lower_left[2],
@@ -139,7 +142,7 @@ void SimpleOccupancyGrid::printPPM(int x, int y, const double pose[3],
     int grid[2];
     bool draw_player = this->world2grid(pose, grid);
     int i_x, i_y, i_tx, i_ty;
-    for (i_y = 0; i_y < this->ncells[1]; i_y += y_step){
+    for (i_y = this->ncells[1]-1; i_y >= 0; i_y -= y_step){
         for (i_x = 0; i_x < this->ncells[0]; i_x += x_step){
             double best_yet = -100;
             double best_yet_cgrid = -100;
@@ -180,6 +183,53 @@ void SimpleOccupancyGrid::printPPM(int x, int y, const double pose[3],
         printf("\n");
     }
 }
+/* Prints out local occupancy grid to console: downsamples so it fits in x chars
+ * wide by y tall */
+void SimpleOccupancyGrid::printPPM_local(int x, int y, const double pose[3],
+                                   bool print_cgrid) const {
+    int x_step = SEARCH_N*2 / x; x_step = x_step == 0 ? 1 : x_step;
+    int y_step = SEARCH_N*2 / y; y_step = y_step == 0 ? 1 : y_step;
+    /* Figure out where pose turns out to be on the grid */
+    int grid[2];
+    bool draw_player = this->world2grid(pose, grid);
+    int i_x, i_y;
+    for (i_y = SEARCH_N; i_y >= -SEARCH_N; i_y -= 1){
+        for (i_x = -SEARCH_N; i_x < SEARCH_N; i_x += 1){
+            int m = grid[0]+i_x; int n = grid[1]+i_y;
+            if (m >= this->ncells[0] || m <= 0 || n >= this->ncells[1] || n <= 0)
+                continue;
+            double best_yet = -100;
+            double best_yet_cgrid = -100;
+            bool this_is_player = false;
+            if (i_y == 0 && i_x == 0){
+                this_is_player = true;
+            } else {
+                best_yet = this->grid[m][n];
+                if (this->cgrid[m][n] == CGRID_DANGER)
+                    best_yet_cgrid = CGRID_DANGER;
+                else if (best_yet_cgrid != CGRID_DANGER && 
+                     this->cgrid[m][n] > 0)
+                    best_yet_cgrid = 1.0;
+            }
+            if (this_is_player)
+                printf("X");
+            else if (best_yet > 4)
+                printf("8");
+            else if (best_yet > 1)
+                printf("+");
+            else if (best_yet > 0)
+                printf("-");
+            else if (print_cgrid && best_yet_cgrid > 0)
+                printf("#");
+            else if (print_cgrid && best_yet_cgrid == CGRID_DANGER)
+                printf("!");
+            else
+                printf(" ");
+        }
+        printf("\n");
+    }
+}
+
 
 /* Given current state of occupancy grid, recomputes cgrid and cgrid
    neighbors. WARNING: THIS MIGHT TAKE A WHILE. */
@@ -250,7 +300,7 @@ bool SimpleOccupancyGrid::get_closest_traversable(double curr_pose[2],
                 double dist = sqrtf( 
                    pow(((double)(c[0]-i))*this->size[0]/this->ncells[0], 2.0f) + 
                    pow(((double)(c[1]-j))*this->size[1]/this->ncells[1], 2.0f) );
-                if (dist < best_dist){
+                if (dist < best_dist && dist > 0.1){
                     best_dist = dist;
                     temp[0] = (double)i;
                     temp[1] = (double)j;
@@ -322,3 +372,85 @@ bool SimpleOccupancyGrid::get_next_dir(double * curr_pose, double * pivot,
     return_dir[1] = diff[1];
     return true;
 }
+
+/* Given a position that is guaranteed to be in a traversable cell,
+   return the direction we'd want to go, going around pivot, by
+   weighting contributions from all local cells.*/
+bool SimpleOccupancyGrid::get_next_dir_vect(double * curr_pose, double * pivot,
+                                           double * return_dir){
+    /* Figure out curr point */
+    int c[2];
+    if (!this->world2grid(curr_pose, c)) return false;
+    if (c[0] == 0) c[0] += 1;
+    if (c[0] == this->ncells[0]-1) c[0] -= 1;
+    if (c[1] == 0) c[1] += 1;
+    if (c[1] == this->ncells[1]-1) c[1] -= 1;
+    
+    /* For all points... 
+    for(int i=0;i<this->ncells[0];i++) {
+    for(int j=0;j<this->ncells[1];j++) {  
+        if (cgrid[i][j] > 0){
+            found_one = true;
+            double dist = sqrtf( 
+               pow(((double)(c[0]-i))*this->size[0]/this->ncells[0], 2.0f) + 
+               pow(((double)(c[1]-j))*this->size[1]/this->ncells[1], 2.0f) );
+            if (dist < best_dist){
+                best_dist = dist;
+                temp[0] = (double)i;
+                temp[1] = (double)j;
+            }
+        }
+    }} */
+    /* Figure out gradient at current point, looking at surrounding N
+       grid cells */
+    double grad[2] = {0.0, 0.0};
+    double our_dist = this->cgrid[c[0]][c[1]];
+    printf("our dist at spot: %f at [%d, %d]\n", our_dist, c[0], c[1]);
+    for (int i=-SEARCH_N; i<=SEARCH_N; i++){
+        for (int j=-SEARCH_N; j<=SEARCH_N; j++){
+            int m = c[0]+i; int n = c[1]+j;
+            if (m >= this->ncells[0] || m <= 0 || n >= this->ncells[1] || n <= 0
+                || i == 0 || j == 0)
+                continue;
+            /* Add contribution from this part. If it's not valid, go away */
+            if (this->cgrid[m][n] == CGRID_DANGER){
+                grad[0] += ILLEGAL_COMP / pow((double)(c[0]-m), 3); grad[1] += ILLEGAL_COMP / pow((double)(c[1]-n), 3);
+                /*
+                printf("Grad: %f, %f, contib added %d, %d w/ %f -> %f, %f\n", grad[0], grad[1], m, n, this->cgrid[m][n], ILLEGAL_COMP / pow((double)(c[0]-m), 3), ILLEGAL_COMP / pow((double)(c[1]-n), 3)); */
+            }
+            /* Otherwise, go torward if it's a lower dist or away if not */ 
+            else if (this->cgrid[m][n] != CGRID_INIT) {
+                grad[0] += TRAV_COMP * (this->cgrid[m][n] - our_dist)*((double)(c[0]-m))/fabs(((double)c[0]-m));
+                grad[1] += TRAV_COMP * (this->cgrid[m][n] - our_dist)*((double)(c[1]-n))/fabs(((double)c[1]-n));
+            }
+        }
+    }
+    /* Normalize */
+    double tot = sqrtf( pow(grad[0], 2) + pow(grad[1], 2) );
+    grad[0] /= tot;
+    grad[1] /= tot;
+    
+    printf("Before pivot norm: %f, %f\n", grad[0], grad[1]);
+    
+    /* And add component in direction around pivot */
+    double diff_pivot[2]; diff_pivot[0] = pivot[0] - curr_pose[0];
+                          diff_pivot[1] = pivot[1] - curr_pose[1];
+    double tmp = diff_pivot[0];
+    diff_pivot[0] = diff_pivot[1];
+    diff_pivot[1] = -tmp;
+    /* now diff_pivot is normal to robot-pivot vector */
+    grad[0] += AROUND_COMP * diff_pivot[0];
+    grad[1] += AROUND_COMP * diff_pivot[1];
+    
+    printf("Final grad: %f, %f ->", grad[0], grad[1]);
+    /* And normalize */
+    tot = sqrtf( pow(grad[0], 2) + pow(grad[1], 2) );
+    grad[0] /= tot;
+    grad[1] /= tot;
+    printf(" %f, %f \n", grad[0], grad[1]);
+    return_dir[0] = grad[0];
+    return_dir[1] = grad[1];
+    return true;
+}
+
+

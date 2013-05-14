@@ -45,7 +45,7 @@ int main(int argc, char **argv)
     #if USE_OCCUPANCY_GRID == 1
 	    double lower_left[2] = {-4.0, -4.0};
 	    double upper_right[2] = {4.0, 4.0};
-	    double cell_size = 0.08;
+	    double cell_size = 0.05;
 
       	SimpleOccupancyGrid oc(lower_left, upper_right, cell_size);
   	#endif

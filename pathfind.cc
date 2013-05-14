@@ -55,10 +55,12 @@ int turn(double goal_theta, int turn_dir, double robot_theta,
                 
 void findPoint(double * goals);
  
- bool route_given_occupancy(double curr_pose[2], 
+bool route_given_occupancy(double curr_pose[2], 
     double return_vert[2], double pivot[2], 
     SimpleOccupancyGrid& oc);
-    
+bool route_given_occupancy_old(double curr_pose[2], 
+    double return_vert[2], double pivot[2], 
+    SimpleOccupancyGrid& oc);
     
 /* Given range data / bearing data (of length n), figures out what
     movements to perform, and stores them in speed / turnrate. Returns
@@ -73,6 +75,7 @@ bool figure_out_movement(double * speed, double * turnrate,
     double dr;
     int i; double theta;
     vector <double> dir(2);
+    double dir_pass[2];
     
     // Act based on state
     switch(state) {
@@ -96,9 +99,11 @@ bool figure_out_movement(double * speed, double * turnrate,
 		     pivot[1] = pose[1] + sinf(theta) * range_data[i];
              break;
         case using_vector_field:
-            apply_vector_field_old(range_data, bearing_data, n, dir, pivot, pose);
-            *speed = dir[0];
-            *turnrate = dir[1];
+            //apply_vector_field_old(range_data, bearing_data, n, dir, pivot, pose);
+            route_given_occupancy(pose, dir_pass, pivot, oc);
+            *speed = dir_pass[0]*TARG_SPEED;
+            *turnrate = dir_pass[1];
+            
             if (*speed <= 0.05) {
                 *speed = 0;
                 *turnrate = 0.6;
@@ -106,10 +111,9 @@ bool figure_out_movement(double * speed, double * turnrate,
             printf("Moving [%f, %f]\n", *speed, *turnrate);
             break;
             
-        case scanning : 
+        case scanning :
             // If we've reached the angle we want, get the
             // point to go to
-            printf("pose %f, goal %f\n", pose[2], goals[2]);
             if (!starting_scan && 
                 (fabs(pose[2] - goals[2] + 2*PI) <= theta_error || 
                  fabs(pose[2] - goals[2] - 2*PI) <= theta_error ||
@@ -141,7 +145,7 @@ bool figure_out_movement(double * speed, double * turnrate,
         // get a new point and change state to be moving
         case get_point : 
             printf("CALCULATING...");
-            route_given_occupancy(pose, goals, pivot, oc); // get the next point
+            route_given_occupancy_old(pose, goals, pivot, oc); // get the next point
             state = move;  
             printf("MOVE STATE\n");       
             break;
@@ -309,12 +313,46 @@ bool apply_vector_field_old(vector<double> range_data,
    vector orthogonal to our point - closest obstacle vert, in direction
    counterclockwise around pivot) and goes as far in that general direction
    as we can. */
-bool route_given_occupancy(double curr_pose[2], 
+bool route_given_occupancy(double curr_pose[3], double return_dir[2],
+    double pivot[2], SimpleOccupancyGrid& oc){
+    /* Update c-occupancy grid */
+    oc.updateCGrid(DANGER_MAX_THRESH, TRAVERSE_MAX_THRESH);
+    oc.printPPM_local(79, 23, curr_pose, true);
+    /* If our present position isn't traversable... */
+    double dir[2];
+    if (oc.cgrid_state(curr_pose) <= 0){
+        /* Find closest traversable point to current pose and go there */
+        double tmp_vert[2];
+        if (!oc.get_closest_traversable(curr_pose, dir))
+            return false;
+        /* that's a vertex; need to return direction to it in local frame
+           of robot. */
+        dir[0] -= curr_pose[0];
+        dir[1] -= curr_pose[1];
+        double tmp = sqrtf(pow(dir[0], 2) + pow(dir[1], 2));
+        dir[0] /= tmp;
+        dir[1] /= tmp;
+    } else {
+        /* We're in reasonable territory, so figure out our direction
+           we kind of want to head, using vector field method on cgrid */
+        if (!oc.get_next_dir_vect(curr_pose, pivot, dir)) return false;
+        /* now return_dir is a normalized global direction. Put it in local
+           coods and we're good */
+    }
+    return_dir[0] = dir[0]*cosf(-curr_pose[2]) + dir[1]*sinf(curr_pose[2]);
+    return_dir[1] = dir[0]*sinf(-curr_pose[2]) + dir[1]*cosf(-curr_pose[2]);
+    printf("Final grad: %f, %f\n", return_dir[0], return_dir[1]);
+    return true;
+}   
+   
+bool route_given_occupancy_old(double curr_pose[2], 
     double return_vert[2], double pivot[2], 
     SimpleOccupancyGrid& oc){
     /* Update c-occupancy grid */
     oc.updateCGrid(DANGER_MAX_THRESH, TRAVERSE_MAX_THRESH);
+    printf("\n");
     oc.printPPM(79, 23, curr_pose, true);
+    oc.printPPM_local(79, 23, curr_pose, true);
     /* If our present position isn't traversable... */
     if (oc.cgrid_state(curr_pose) <= 0){
         /* Find closest traversable point to current pose and go there */
@@ -332,6 +370,7 @@ bool route_given_occupancy(double curr_pose[2],
        for offsetting from that dir */
     double theta;
     double best_dist_so_far = -1;
+    double best_heading_so_far = 1000.0;
     double final_pos[2];
     for (theta=THETA_SEARCH_BEGIN; theta < THETA_SEARCH_END;
          theta+=THETA_SEARCH_DTHETA){
@@ -349,8 +388,10 @@ bool route_given_occupancy(double curr_pose[2],
             i += THETA_PATHTRACE_STEP;
         } while (oc.cgrid_state(curr_pos) > 0.0);
         i -= THETA_PATHTRACE_STEP;
-        if (i > best_dist_so_far){
+        if ((i < THETA_PATHTRACE_MAXDIST && i > best_dist_so_far) ||
+            (i > 0.1 && theta < best_heading_so_far)){
             best_dist_so_far = i;
+            best_heading_so_far = theta;
             i = i > THETA_PATHTRACE_MAXDIST ? THETA_PATHTRACE_MAXDIST : i;
             final_pos[0] = curr_pose[0] 
                          + dir_to_go[0]*i*THETA_PATHTRACE_FINALDISTMOD;
