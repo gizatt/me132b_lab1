@@ -10,6 +10,7 @@
  *                                from regular grid.
  *  Gregory Izatt    20130513    Much addition of helper functions for various
  *                                pathfinding attempts
+ *  Gregory Izatt    20130514    ctd
  */
 
 #include <assert.h>
@@ -185,48 +186,57 @@ void SimpleOccupancyGrid::printPPM(int x, int y, const double pose[3],
 }
 /* Prints out local occupancy grid to console: downsamples so it fits in x chars
  * wide by y tall */
-void SimpleOccupancyGrid::printPPM_local(int x, int y, const double pose[3],
-                                   bool print_cgrid) const {
+void SimpleOccupancyGrid::printPPM_local(int x, int y, const double pose_new[2],
+           const double pose[3], bool print_cgrid) const {
     int x_step = SEARCH_N*2 / x; x_step = x_step == 0 ? 1 : x_step;
     int y_step = SEARCH_N*2 / y; y_step = y_step == 0 ? 1 : y_step;
     /* Figure out where pose turns out to be on the grid */
     int grid[2];
     bool draw_player = this->world2grid(pose, grid);
+    int grid_new[2];
+    bool draw_new = this->world2grid(pose_new, grid_new);
     int i_x, i_y;
-    for (i_y = SEARCH_N; i_y >= -SEARCH_N; i_y -= 1){
-        for (i_x = -SEARCH_N; i_x < SEARCH_N; i_x += 1){
-            int m = grid[0]+i_x; int n = grid[1]+i_y;
-            if (m >= this->ncells[0] || m <= 0 || n >= this->ncells[1] || n <= 0)
-                continue;
-            double best_yet = -100;
-            double best_yet_cgrid = -100;
-            bool this_is_player = false;
-            if (i_y == 0 && i_x == 0){
-                this_is_player = true;
-            } else {
-                best_yet = this->grid[m][n];
-                if (this->cgrid[m][n] == CGRID_DANGER)
-                    best_yet_cgrid = CGRID_DANGER;
-                else if (best_yet_cgrid != CGRID_DANGER && 
-                     this->cgrid[m][n] > 0)
-                    best_yet_cgrid = 1.0;
+    if (draw_player){
+        for (i_y = SEARCH_N; i_y >= -SEARCH_N; i_y -= 1){
+            for (i_x = -SEARCH_N; i_x < SEARCH_N; i_x += 1){
+                int m = grid[0]+i_x; int n = grid[1]+i_y;
+                if (m >= this->ncells[0] || m <= 0 || n >= this->ncells[1] || n <= 0)
+                    continue;
+                double best_yet = -100;
+                double best_yet_cgrid = -100;
+                bool this_is_player = false;
+                bool this_is_new = false;
+                if (i_y == 0 && i_x == 0){
+                    this_is_player = true;
+                } else if (n == grid_new[1] && m == grid_new[0]){
+                    this_is_new = true;
+                } else {
+                    best_yet = this->grid[m][n];
+                    if (this->cgrid[m][n] == CGRID_DANGER)
+                        best_yet_cgrid = CGRID_DANGER;
+                    else if (best_yet_cgrid != CGRID_DANGER && 
+                         this->cgrid[m][n] > 0)
+                        best_yet_cgrid = 1.0;
+                }
+                if (this_is_player)
+                    printf("X");
+                else if (this_is_new)
+                    printf("O");
+                else if (best_yet > 4)
+                    printf("8");
+                else if (best_yet > 1)
+                    printf("+");
+                else if (best_yet > 0)
+                    printf("-");
+                else if (print_cgrid && best_yet_cgrid > 0)
+                    printf("#");
+                else if (print_cgrid && best_yet_cgrid == CGRID_DANGER)
+                    printf("!");
+                else
+                    printf(" ");
             }
-            if (this_is_player)
-                printf("X");
-            else if (best_yet > 4)
-                printf("8");
-            else if (best_yet > 1)
-                printf("+");
-            else if (best_yet > 0)
-                printf("-");
-            else if (print_cgrid && best_yet_cgrid > 0)
-                printf("#");
-            else if (print_cgrid && best_yet_cgrid == CGRID_DANGER)
-                printf("!");
-            else
-                printf(" ");
+            printf("\n");
         }
-        printf("\n");
     }
 }
 
@@ -296,11 +306,11 @@ bool SimpleOccupancyGrid::get_closest_traversable(double curr_pose[2],
         for(int i=0;i<this->ncells[0];i++) {
 	    for(int j=0;j<this->ncells[1];j++) {  
 	        if (cgrid[i][j] > 0){
-	            found_one = true;
                 double dist = sqrtf( 
                    pow(((double)(c[0]-i))*this->size[0]/this->ncells[0], 2.0f) + 
                    pow(((double)(c[1]-j))*this->size[1]/this->ncells[1], 2.0f) );
-                if (dist < best_dist && dist > 0.1){
+                if (dist < best_dist && dist > 0.2){
+	                found_one = true;
                     best_dist = dist;
                     temp[0] = (double)i;
                     temp[1] = (double)j;
@@ -453,4 +463,31 @@ bool SimpleOccupancyGrid::get_next_dir_vect(double * curr_pose, double * pivot,
     return true;
 }
 
-
+/* steps outward from parent a bit while maintaining same parent */
+bool SimpleOccupancyGrid::increase_dist_to_parent(double final_pos[2]){
+    /* Figure out curr point */
+    int c[2];
+    if (!this->world2grid(final_pos, c)) return false;
+    double parent[2];
+    /* set up a parent, a vector away from it, and loop vars */
+    parent[0] = this->cgrid_owner[c[0]][2*c[1]];
+    parent[1] = this->cgrid_owner[c[0]][2*c[1]+1];
+    double i=(double)c[0]; double j=(double)c[1];
+    double norm[2];
+    norm[0] = c[0] - parent[0]; norm[1] = c[1] - parent[1];
+    double tot = sqrtf( pow(norm[0], 2) + pow(norm[1], 2) );
+    norm[0] /= tot; norm[1] /= tot;
+    int iter = 0;
+    while (true){
+        /* if we've gone far enough or changed parents, we're done */
+        if (iter > 10 || parent[0] != this->cgrid_owner[(int)i][(int)j]){
+            break;
+        }
+        /* otherwise step further */
+        iter++;
+        i += norm[0]; j += norm[1];
+    }
+    /* set final pos to wherever we wound up */
+    final_pos[0] = (i+0.5)*this->size[0]/this->ncells[0]  + this->origin[0];
+    final_pos[1] = (j+0.5)*this->size[1]/this->ncells[1] + this->origin[1]; 
+}

@@ -36,7 +36,7 @@ const int using_vector_field = 4;
  
 // declare constants used for robot odometry
 const double dist_error = .08;
-const double theta_error = .10;
+const double theta_error = .05;
  
 /* Pivot around which we always try to round */
 double pivot[2];
@@ -68,6 +68,8 @@ bool route_given_occupancy_old(double curr_pose[2],
     something) and true if everything is logically OK, or sets speed and
     turnrate to zero and returns false if we somehow get dead-ended
     or reach some logically invalid state. */
+double last_speed = 0;
+double last_turnrate = 0;
 bool figure_out_movement(double * speed, double * turnrate,
     vector<double> range_data, vector<double> bearing_data, unsigned int n,
     double * pose, SimpleOccupancyGrid& oc, bool use_vector_field) {
@@ -153,6 +155,16 @@ bool figure_out_movement(double * speed, double * turnrate,
         default : return false;
             break;    
     }
+    
+    /* low-pass filter speed */
+    if (*speed != 0)
+    *speed = 0.5**speed + 0.5*last_speed;
+    last_speed = *speed;
+    if (*turnrate != 0)
+    *turnrate = 0.5**turnrate + 0.5*last_turnrate;
+    last_turnrate = *turnrate;
+    
+    
     return true;
     
 }
@@ -316,8 +328,9 @@ bool apply_vector_field_old(vector<double> range_data,
 bool route_given_occupancy(double curr_pose[3], double return_dir[2],
     double pivot[2], SimpleOccupancyGrid& oc){
     /* Update c-occupancy grid */
+    double tmp[3] = {-1000, -1000, -1000};
     oc.updateCGrid(DANGER_MAX_THRESH, TRAVERSE_MAX_THRESH);
-    oc.printPPM_local(79, 23, curr_pose, true);
+    oc.printPPM_local(79, 23, tmp, curr_pose, true);
     /* If our present position isn't traversable... */
     double dir[2];
     if (oc.cgrid_state(curr_pose) <= 0){
@@ -344,22 +357,18 @@ bool route_given_occupancy(double curr_pose[3], double return_dir[2],
     printf("Final grad: %f, %f\n", return_dir[0], return_dir[1]);
     return true;
 }   
-   
 bool route_given_occupancy_old(double curr_pose[2], 
     double return_vert[2], double pivot[2], 
     SimpleOccupancyGrid& oc){
     /* Update c-occupancy grid */
     oc.updateCGrid(DANGER_MAX_THRESH, TRAVERSE_MAX_THRESH);
-    printf("\n");
-    oc.printPPM(79, 23, curr_pose, true);
-    oc.printPPM_local(79, 23, curr_pose, true);
     /* If our present position isn't traversable... */
     if (oc.cgrid_state(curr_pose) <= 0){
         /* Find closest traversable point to current pose and go there */
         if (!oc.get_closest_traversable(curr_pose, return_vert))
             return false;
-        if (sqrtf( pow(return_vert[0], 2) + pow(return_vert[1], 2)) > 0.08)
-            return true;
+        oc.printPPM_local(79, 23, return_vert, curr_pose, true);
+        return true;
     }
     /* We're in reasonable territory, so figure out our direction
        we kind of want to head */
@@ -370,7 +379,6 @@ bool route_given_occupancy_old(double curr_pose[2],
        for offsetting from that dir */
     double theta;
     double best_dist_so_far = -1;
-    double best_heading_so_far = 1000.0;
     double final_pos[2];
     for (theta=THETA_SEARCH_BEGIN; theta < THETA_SEARCH_END;
          theta+=THETA_SEARCH_DTHETA){
@@ -386,12 +394,10 @@ bool route_given_occupancy_old(double curr_pose[2],
             curr_pos[0] = curr_pose[0] + dir_to_go[0]*i;
             curr_pos[1] = curr_pose[1] + dir_to_go[1]*i;
             i += THETA_PATHTRACE_STEP;
-        } while (oc.cgrid_state(curr_pos) > 0.0);
+        } while (oc.cgrid_state(curr_pos) > 0.0 && i < THETA_PATHTRACE_MAXDIST);
         i -= THETA_PATHTRACE_STEP;
-        if ((i < THETA_PATHTRACE_MAXDIST && i > best_dist_so_far) ||
-            (i > 0.1 && theta < best_heading_so_far)){
+        if (i > best_dist_so_far){
             best_dist_so_far = i;
-            best_heading_so_far = theta;
             i = i > THETA_PATHTRACE_MAXDIST ? THETA_PATHTRACE_MAXDIST : i;
             final_pos[0] = curr_pose[0] 
                          + dir_to_go[0]*i*THETA_PATHTRACE_FINALDISTMOD;
@@ -399,8 +405,12 @@ bool route_given_occupancy_old(double curr_pose[2],
                          + dir_to_go[1]*i*THETA_PATHTRACE_FINALDISTMOD;
         }
     }
+    /* Given final position, step outward from the parent point as much as we
+       can while preserving who the parent point is */
+   oc.increase_dist_to_parent(final_pos);
     return_vert[0] = final_pos[0];
     return_vert[1] = final_pos[1];
     printf("sending to %f, %f\n", return_vert[0], return_vert[1]);
+    oc.printPPM_local(79, 23, return_vert, curr_pose, true);
     return true;
 }

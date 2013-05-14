@@ -36,7 +36,7 @@ class SimpleOccupancyGrid {
 		/* Prints out to console */
 		void printPPM(int x, int y, const double pose[3], 
 		              bool print_cgrid) const;
-		void printPPM_local(int x, int y, const double pose[3], 
+		void printPPM_local(int x, int y, const double pose_last[3], const double pose[3], 
 		              bool print_cgrid) const;
 		              		
 		void updateCGrid(double danger_thresh, double traverse_max);
@@ -45,7 +45,9 @@ class SimpleOccupancyGrid {
         bool get_next_dir(double curr_pose[2], double pivot[2],
                                            double return_dir[2]);   
         bool get_next_dir_vect(double curr_pose[2], double pivot[2],
-                                           double return_dir[2]);              
+                                           double return_dir[2]);   
+        bool increase_dist_to_parent(double final_pos[2]);
+                   
 	private:
 
 		/** Converts world coordinates to grid coordinates.
