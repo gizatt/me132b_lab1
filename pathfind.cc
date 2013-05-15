@@ -68,8 +68,6 @@ bool route_given_occupancy_old(double curr_pose[2],
     something) and true if everything is logically OK, or sets speed and
     turnrate to zero and returns false if we somehow get dead-ended
     or reach some logically invalid state. */
-double last_speed = 0;
-double last_turnrate = 0;
 bool figure_out_movement(double * speed, double * turnrate,
     vector<double> range_data, vector<double> bearing_data, unsigned int n,
     double * pose, SimpleOccupancyGrid& oc, bool use_vector_field) {
@@ -155,16 +153,6 @@ bool figure_out_movement(double * speed, double * turnrate,
         default : return false;
             break;    
     }
-    
-    /* low-pass filter speed */
-    if (*speed != 0)
-    *speed = 0.5**speed + 0.5*last_speed;
-    last_speed = *speed;
-    if (*turnrate != 0)
-    *turnrate = 0.5**turnrate + 0.5*last_turnrate;
-    last_turnrate = *turnrate;
-    
-    
     return true;
     
 }
