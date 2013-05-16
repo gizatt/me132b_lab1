@@ -8,21 +8,24 @@ moderate-sized obstacle in an otherwise spacious room, using player/stage
 for interface (and simulation).
 
 Project status:
-+Successfully (or perhaps "successfully") demo'd to Mary on 20130514.
++ Successfully (or perhaps "successfully") demo'd to Mary on 20130514.
 
 BUILD AND TEST INSTRUCTIONS:
 ----------------------------
 
 Making is as simple as:
-'make clean all'
+
+    make clean all
 
 Running in simulation:
-'player -p <port> ./configs/lab.cfg"
-launch robot with "./lab1 -p <port>'
+
+    player -p <port> ./configs/lab.cfg"
+    ./lab1 -p <port>
 
 Running in lab:
-'player ~/configs/pioneer2_laser.cfg //or something like that
-./lab1'
+
+    player ~/configs/pioneer2_laser.cfg //or something like that
+    ./lab1
 
 Note that both of these sometimes don't maange to connect or
 initialize quite right -- operation at that point is pretty
