@@ -127,7 +127,7 @@ the same demarcations, but not requiring any downsampling.
 Example renderings:
 
 Global:
-
+/*****************************************************************************
 
 
                        ##################################
@@ -153,6 +153,9 @@ Global:
                       ##!!!!!!!!!!!!!!!!!!!!##!!!!!!!!!####
                        #################################
 
+
+
+*****************************************************************************/
 A global rendering of the robot currently positioned between
 two obstacles. You can see the L-shaped primary obstacle
 on the left, and a square obstacle on the right. You can also
@@ -166,6 +169,7 @@ before we try to drive into it.
 
 
 Local:
+/*****************************************************************************
                             #########     ##########          ###########
                            ###########   ############          #########
                          ##############################
@@ -197,6 +201,7 @@ Local:
               #####!!!!8!!!!#####                         #####!!!!88!!!!!####
               #####!!!!8!!!!#####                         #####!!!!888!!!!####
               #####!!!!8!!!!#####                        ######!!!!!!8!!!!####
+*****************************************************************************/
 A local rendering after the robot has traversed between the two
 obstacles, scanned, as is planning on moving up to a point
 outside of them. Note that the choice of path we've made
