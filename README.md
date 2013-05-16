@@ -32,6 +32,26 @@ initialize quite right -- operation at that point is pretty
 much undefined. All it takes is trying again to get things to
 work, usually.
 
+Key assumptions made in running:
++ The robot assumes it is started with a point on the obstacle
+it is to circumnavigate directly in its field of view.
++ The robot will attempt to navigate counterclockwise around
+the obstacle.
++ The robot is very likely to get horribly stuck if the obstacle
+isn't circumnavigible!
++ The robot assumes the world is relatively static, and all relevant
+obstacles are in view of its laser scanner and are decently visible
+on it. If this isn't true, it's probably going to hit something! It
+can deal with very slowly moving obstacles, but when it's trying to
+move to a point, it doesn't look for changes in its goal or the
+path to its goal.
++ The pathfinding works a lot better if the obstacle is relatively
+simple, with fairly large features, and if there are no distracting
+obstacles (like walls) extremely close by. The navigation code makes
+guesses as to what paths are more likely to be around the obstacle
+than around distractors, but that code still demands lots of tuning --
+that's no easy choice to make ;)
+
 
 INCLUDED FILES:
 ---------------
