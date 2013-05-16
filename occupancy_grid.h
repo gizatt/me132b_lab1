@@ -8,7 +8,6 @@ using namespace std;
 #define CGRID_INIT (-1.0)
 #define CGRID_DANGER (-2.0)
 
-
 class SimpleOccupancyGrid {
 	
 	public:

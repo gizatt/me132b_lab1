@@ -10,13 +10,8 @@ bool figure_out_movement(double * speed, double * turnrate,
     vector<double> range_data, vector<double> bearing_data, unsigned int n,
     double * pose, SimpleOccupancyGrid& oc, bool use_vector_field);
     
-#define MIN_TURN_RATE 0.3
-#define MAX_TURN_RATE 0.5
-#define SPEED_EPS 0.01
-#define ANGLE_EPS 0.01
-#define MIN_WALL_DIST 0.1
-#define MAX_SPEED 0.5
-    
+/* Inherited from Tiffany's lab2 implementation: should either be used universally,
+   or phased out eventually. */
 // This object stores the (x,y,theta) pose of a robot
 struct Pose
 {

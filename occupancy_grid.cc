@@ -11,6 +11,36 @@
  *  Gregory Izatt    20130513    Much addition of helper functions for various
  *                                pathfinding attempts
  *  Gregory Izatt    20130514    ctd
+ *
+ * Description: Maintains an occupancy grid of specified size, in global
+ *  coordinates. Provides accessors and mutators for updating the grid,
+ *  retrieving information at specific points, updating a c-space approximation
+ *  ("c-grid") based on the occupancy grid, visualizing the c-grid, and
+ *  various helper functions for performing pathfinding using the occ grid
+ *  and c-grid, which are put in here because they require lots of access
+ *  to raw c-grid data.
+ * Occupancy grid is roughly probabilistic; it decays over time. Each entry
+ *  is a number (initialized to -5.0); subsequent observations of an obstacle
+ *  increase this (such that an obstacle is "detected" if the number is >0), but
+ *  the grid decays whenever a new sweep is added as well, so obstacles not
+ *  repeatedly observed are slowly forgotten (which helps prevent against drift
+ *  and a changing environment.)
+ * CGrid can have one of three things in each location: CGRID_DANGER, which is
+ *  "too close to obstacle"; CGRID_INIT, which is "not close enough to obstacle
+ *  to be traversable", or a positive number, which indicates the cell is indeed
+ *  traversable and reflects distance to closest cell. For traversable cells,
+ *  cgrid_owner[i][2*j] and cgrid_owner[i][2*j+1] contain the i and j coords
+ *  of the closest obstacle point, in case you want to use that for something.
+ * Known issues / TODO's: 
+ *   - Grid initial condition and decay rate currently defined by magic #'s in
+ *     code. This should be fixed eventually, it's messy~
+ *   - This is generally disorganized and merits some reorganization. Make 
+ *     cgrid its own thing, maybe? Better organize divide between occ_grid and
+ *     pathfinding proper, at the very least!
+ *   - Real rendering (not ASCII rendering) desirable for higher resolution
+ *     and no distortion. Even though it's hilarious.
+ *   - Debug printfs and things are still around, though they're not too
+ *     bad. Eventually add a VERBOSE option or something.
  */
 
 #include <assert.h>
@@ -20,6 +50,8 @@
 #include <fstream>
 #include "lab1.h"
 
+/* Constructor; sets sizes and such, and zeros out grid (and cgrid,
+   though that isn't strictly necessary) */
 SimpleOccupancyGrid::SimpleOccupancyGrid(
 	const double lower_left[2],
 	const double upper_right[2], 
@@ -50,11 +82,12 @@ SimpleOccupancyGrid::SimpleOccupancyGrid(
 	for(int i=0;i<this->ncells[0];i++)
 	for(int j=0;j<this->ncells[1];j++){
 		this->grid[i][j] = -5.0;
-		this->cgrid[i][j] = -1.0;
+		this->cgrid[i][j] = CGRID_INIT;
     }
 	
 }
 
+/* Converts world coords to grid coords in grid[] */
 bool SimpleOccupancyGrid::world2grid(const double world[2], int grid[2]) const {
 	for(int i=0;i<2;i++) {
 		double u = (world[i] - this->origin[i] ) / this->size[i]; // \in [0,1]
@@ -66,6 +99,7 @@ bool SimpleOccupancyGrid::world2grid(const double world[2], int grid[2]) const {
 	return true;
 }
 
+/* Returns whether specified space is occupied */
 bool SimpleOccupancyGrid::occupied(const double world[2]) const {
 	
 	int c[2];
@@ -79,13 +113,14 @@ bool SimpleOccupancyGrid::occupied(const double world[2]) const {
 	
 }
 
-
+/* Given grid coordinates, marks an obstacle in that space. */
 void SimpleOccupancyGrid::markObstacle(const double p[2]) {
 	int c[2];
 	if(this->world2grid(p, c))
 		this->grid[c[0]][c[1]] += 1.0;
 }
 	
+/* Adds a passed scan to the grid proper. */
 void SimpleOccupancyGrid::addScan(
 	const double pose[3], 
 	int n,  
@@ -115,6 +150,7 @@ void SimpleOccupancyGrid::addScan(
 		
 };
 
+/* Save things out~ */
 void SimpleOccupancyGrid::savePPM(const char*filename) const {
 	ofstream ofs(filename);
 	ofs << "P2" << endl;
@@ -134,7 +170,13 @@ void SimpleOccupancyGrid::savePPM(const char*filename) const {
 }
 
 /* Prints out occupancy grid to console: downsamples so it fits in x chars
- * wide by y tall */
+   wide by y tall. Prints in ASCII, with X representing the player
+   location (in pose),  8 representing obstacles we're certain about,
+   + representing ones we're pretty sure about, and - being ones
+   that are almost decayed. Also prints cgrid overlayed, if print_cgrid
+   is passed in as true: # is traversable space, and ! is space that
+   is too close to an obstacle to be traversable. Empty space is
+   too far from an obstacle (and also not traversable). */
 void SimpleOccupancyGrid::printPPM(int x, int y, const double pose[3],
                                    bool print_cgrid) const {
     int x_step = this->ncells[0] / x; x_step = x_step == 0 ? 1 : x_step;
@@ -184,12 +226,14 @@ void SimpleOccupancyGrid::printPPM(int x, int y, const double pose[3],
         printf("\n");
     }
 }
-/* Prints out local occupancy grid to console: downsamples so it fits in x chars
- * wide by y tall */
+
+/* Prints out local occupancy grid to console, look x/2 cells l and r, and
+   y/2 u and d. Prints using same character set as above, with one addition:
+   if pose_new is within the world, it'll be drawn in as "O"; this is generally
+   used to render a motion plan showing current location as "X", local world
+   as described above, and goal as "O". */
 void SimpleOccupancyGrid::printPPM_local(int x, int y, const double pose_new[2],
            const double pose[3], bool print_cgrid) const {
-    int x_step = SEARCH_N*2 / x; x_step = x_step == 0 ? 1 : x_step;
-    int y_step = SEARCH_N*2 / y; y_step = y_step == 0 ? 1 : y_step;
     /* Figure out where pose turns out to be on the grid */
     int grid[2];
     bool draw_player = this->world2grid(pose, grid);
@@ -197,8 +241,8 @@ void SimpleOccupancyGrid::printPPM_local(int x, int y, const double pose_new[2],
     bool draw_new = this->world2grid(pose_new, grid_new);
     int i_x, i_y;
     if (draw_player){
-        for (i_y = SEARCH_N; i_y >= -SEARCH_N; i_y -= 1){
-            for (i_x = -SEARCH_N; i_x < SEARCH_N; i_x += 1){
+        for (i_y = y/2; i_y >= -y/2; i_y -= 1){
+            for (i_x = -x/2; i_x < x/2; i_x += 1){
                 int m = grid[0]+i_x; int n = grid[1]+i_y;
                 if (m >= this->ncells[0] || m <= 0 || n >= this->ncells[1] || n <= 0)
                     continue;
@@ -283,7 +327,9 @@ void SimpleOccupancyGrid::updateCGrid(double danger_thresh,
     }}
 }
 
-/* Return state of given c_grid spot; DANGER if out of bounds */
+/* Return state of given c_grid spot; DANGER if out of bounds. Defined
+   in include as either CGRID_INIT, CGRID_DANGER, or positive (being
+   a traversable space == distance to closest obstacle.) */
 double SimpleOccupancyGrid::cgrid_state(const double world[2]) const {
 	int c[2];
 	if(this->world2grid(world, c)) {
@@ -295,7 +341,8 @@ double SimpleOccupancyGrid::cgrid_state(const double world[2]) const {
 }
 
 /* Get closest traversable grid cell (converted into world space) into
-   temp, if any */
+   temp, if any; filters out candidates that are TOO close, given
+   constant defined in lab1.h. */
 bool SimpleOccupancyGrid::get_closest_traversable(double curr_pose[2], 
        double temp[2]){
     int c[2];
@@ -309,7 +356,8 @@ bool SimpleOccupancyGrid::get_closest_traversable(double curr_pose[2],
                 double dist = sqrtf( 
                    pow(((double)(c[0]-i))*this->size[0]/this->ncells[0], 2.0f) + 
                    pow(((double)(c[1]-j))*this->size[1]/this->ncells[1], 2.0f) );
-                if (dist < best_dist && dist > 0.2){
+                /* If this is a better candidate BUT isn't TOO close, go for it. */
+                if (dist < best_dist && dist > GET_CLOSEST_TRAVERSE_TOO_CLOSE_THRESH){
 	                found_one = true;
                     best_dist = dist;
                     temp[0] = (double)i;
@@ -323,7 +371,6 @@ bool SimpleOccupancyGrid::get_closest_traversable(double curr_pose[2],
 	                  + this->origin[0];
 	        temp[1] = temp[1]*this->size[1]/this->ncells[1] 
 	                  + this->origin[1];
-	        printf("Reportin at %f, %f\n", temp[0], temp[1]);
 	    } else {
 	        printf("Couldn't find traversable cell.\n");
 	        temp[0] = curr_pose[0];
@@ -339,41 +386,50 @@ bool SimpleOccupancyGrid::get_closest_traversable(double curr_pose[2],
 }
 
 /* Given a position that is guaranteed to be in a traversable cell,
-   return the direction we'd want to go, going around pivot.*/
+   return the direction we'd want to go, which is presently just
+   going ccw around the given pivot. Returns true if successful,
+   false if not, and updates return_dir with the dir we choose. */
 bool SimpleOccupancyGrid::get_next_dir(double * curr_pose, double * pivot,
                                            double * return_dir){
-    /* Figure out the idfference between pose and parent point */
     double diff[2];
-    int c[2];
-    printf("Start: %f, %f -> %f, %f ::: ", diff[0], diff[1], this->cgrid_owner[c[0]][2*c[1]], this->cgrid_owner[c[0]][2*c[1]+1]);
-    if (!this->world2grid(curr_pose, c)) return false;
-    diff[0] = curr_pose[0] - (this->cgrid_owner[c[0]][2*c[1]]
-                             *this->size[0]/this->ncells[0] + this->origin[0]);
-    diff[1] = curr_pose[1] - (this->cgrid_owner[c[0]][2*c[1]+1]
-                             *this->size[1]/this->ncells[1] + this->origin[1]);  
-    printf("To closest pt: %f, %f\n", diff[0], diff[1]);  
-    /* Dir in axis we car about is perp to that */
-    double tmp = diff[0];
-    diff[0] = diff[1];
-    diff[1] = -tmp;
-    printf("Norm: %f, %f\n", diff[0], diff[1]);
-    /* Invert if it's not going around pivot */
+
+    // OLD: added influence from closest obstacle point.
+        /* Figure out the idfference between pose and parent point */
+        // int c[2];
+        // printf("Start: %f, %f -> %f, %f ::: ", diff[0], diff[1], this->cgrid_owner[c[0]][2*c[1]], this->cgrid_owner[c[0]][2*c[1]+1]);
+        // if (!this->world2grid(curr_pose, c)) return false;
+        // diff[0] = curr_pose[0] - (this->cgrid_owner[c[0]][2*c[1]]
+        //                          *this->size[0]/this->ncells[0] + this->origin[0]);
+        // diff[1] = curr_pose[1] - (this->cgrid_owner[c[0]][2*c[1]+1]
+        //                          *this->size[1]/this->ncells[1] + this->origin[1]);  
+        // printf("To closest pt: %f, %f\n", diff[0], diff[1]);  
+        // /* Dir in axis we car about is perp to that */
+        // double tmp = diff[0];
+        // diff[0] = diff[1];
+        // diff[1] = -tmp;
+        // printf("Norm: %f, %f\n", diff[0], diff[1]);
+        /* Invert if it's not going around pivot */
+
+    /* Get vector to pivot: */
     double diff_pivot[2]; diff_pivot[0] = pivot[0] - curr_pose[0];
                           diff_pivot[1] = pivot[1] - curr_pose[1];
-    tmp = diff_pivot[0];
+    double tmp = diff_pivot[0];
     diff_pivot[0] = diff_pivot[1];
     diff_pivot[1] = -tmp;
-    
-    /* now diff_pivot is normal to robot-pivot vector */
-//    if (diff[0]*diff_pivot[0] + diff[1]*diff_pivot[1] < 0){
-//        /* invert if our direction isn't going that way */
-//        diff[0] *= -1.0;
-//        diff[1] *= -1.0;
-//    }
+    /* now diff_pivot is normal to robot-pivot vector, going ccw around pivot */
+
+    // Again, old
+       // if (diff[0]*diff_pivot[0] + diff[1]*diff_pivot[1] < 0){
+       //      invert if our direction isn't going that way 
+       //     diff[0] *= -1.0;
+       //     diff[1] *= -1.0;
+       // }
+
+    /* That's simply the direction we want to go */
     diff[0] = diff_pivot[0];
     diff[1] = diff_pivot[1];
     
-    printf("Inverted Norm: %f, %f\n", diff[0], diff[1]);
+    printf("Direction to go: %f, %f\n", diff[0], diff[1]);
     /* And normalize */
     double tot = sqrtf( pow(diff[0], 2) + pow(diff[1], 2) );
     diff[0] /= tot;
@@ -384,11 +440,16 @@ bool SimpleOccupancyGrid::get_next_dir(double * curr_pose, double * pivot,
 }
 
 /* Given a position that is guaranteed to be in a traversable cell,
-   return the direction we'd want to go, going around pivot, by
-   weighting contributions from all local cells.*/
+   return the direction we'd want to go, going ccw around pivot, by
+   weighting contributions from all local cells. Ret true if successful,
+   false if not. "Direction we want to go" is as close as we can
+   get to "too close" to an obstacle (by following gradient of
+   positive c_grid entries, and adding strong contributions away
+   from non-traversable points. */
 bool SimpleOccupancyGrid::get_next_dir_vect(double * curr_pose, double * pivot,
                                            double * return_dir){
-    /* Figure out curr point */
+    /* Figure out curr point, and move it inside if it's on a border
+       (this was necessary for old method; maybe not anymore?) */
     int c[2];
     if (!this->world2grid(curr_pose, c)) return false;
     if (c[0] == 0) c[0] += 1;
@@ -396,7 +457,7 @@ bool SimpleOccupancyGrid::get_next_dir_vect(double * curr_pose, double * pivot,
     if (c[1] == 0) c[1] += 1;
     if (c[1] == this->ncells[1]-1) c[1] -= 1;
     
-    /* For all points... 
+    /* For all points... OLD APPROACH, NOW IRRELEVANT
     for(int i=0;i<this->ncells[0];i++) {
     for(int j=0;j<this->ncells[1];j++) {  
         if (cgrid[i][j] > 0){
@@ -411,7 +472,8 @@ bool SimpleOccupancyGrid::get_next_dir_vect(double * curr_pose, double * pivot,
             }
         }
     }} */
-    /* Figure out gradient at current point, looking at surrounding N
+
+    /* Figure out "gradient" at current point, looking at surrounding N
        grid cells */
     double grad[2] = {0.0, 0.0};
     double our_dist = this->cgrid[c[0]][c[1]];
@@ -425,8 +487,6 @@ bool SimpleOccupancyGrid::get_next_dir_vect(double * curr_pose, double * pivot,
             /* Add contribution from this part. If it's not valid, go away */
             if (this->cgrid[m][n] == CGRID_DANGER){
                 grad[0] += ILLEGAL_COMP / pow((double)(c[0]-m), 3); grad[1] += ILLEGAL_COMP / pow((double)(c[1]-n), 3);
-                /*
-                printf("Grad: %f, %f, contib added %d, %d w/ %f -> %f, %f\n", grad[0], grad[1], m, n, this->cgrid[m][n], ILLEGAL_COMP / pow((double)(c[0]-m), 3), ILLEGAL_COMP / pow((double)(c[1]-n), 3)); */
             }
             /* Otherwise, go torward if it's a lower dist or away if not */ 
             else if (this->cgrid[m][n] != CGRID_INIT) {
@@ -463,7 +523,9 @@ bool SimpleOccupancyGrid::get_next_dir_vect(double * curr_pose, double * pivot,
     return true;
 }
 
-/* steps outward from parent a bit while maintaining same parent */
+/* Given a traversable cell, steps outward from the closest obstacle
+   a hair until we're either "far enough" away (see const in lab1.h),
+   or the closest obstacle changes. */
 bool SimpleOccupancyGrid::increase_dist_to_parent(double final_pos[2]){
     /* Figure out curr point */
     int c[2];
@@ -480,7 +542,7 @@ bool SimpleOccupancyGrid::increase_dist_to_parent(double final_pos[2]){
     int iter = 0;
     while (true){
         /* if we've gone far enough or changed parents, we're done */
-        if (iter > 10 || parent[0] != this->cgrid_owner[(int)i][(int)j]){
+        if (iter > MAX_STEP_ITER || parent[0] != this->cgrid_owner[(int)i][(int)j]){
             break;
         }
         /* otherwise step further */

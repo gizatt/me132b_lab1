@@ -40,7 +40,7 @@ floorplan
 ( 
   name "lab"
   bitmap "lab.png"
-  size [3.6 4.5 0.800]
+  size [3.6 4.5 1.0]
   pose [0 0 0 0]
 )
 

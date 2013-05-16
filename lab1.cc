@@ -6,16 +6,19 @@
  *   Gregory Izatt  20130507  Init revision, based on Lab2 code from ME132a
  *   Gregory Izatt  20130509  Importing occupancy grid example code supplied
  *                             by TA's, in case we want to try that out
- *   Team           20130509/10  Working on everything
+ *   Team           20130509-15  Fighting in to general shape.
  *
  * Description:
  *    Given a Pioneer 2 robot system, equiped with two primary wheels,
  * a forward-facing stereo camera, and horizontal laser scanner, in a 
- * world containing a polygonal obstacle of reasonable size that is
- * circumnavigable, and given that the Pioneer robot starts with the
- * obstacle in view, the robot will attempt to navigate around the
- * obstacle by holding it on its left side at a reasonable distance.     
- *
+ * world containing an obstacle of reasonable size that is circumnavigable, 
+ * and given that the Pioneer robot starts with the obstacle in the center
+ * of its view, the robot attempts to navigate the obstacle by repeatedly
+ * constructing its occupancy map, extending it into a c-space approximation,
+ * and searching for a legal straight-line route to traverse around the
+ * obstacle. It then executes that straight-line path and repeats this
+ * process. Obstacle identification / paths are chosen by heuristic explained
+ * over in pathfind.cc.
  *
  ****************************************************************************/
 
@@ -41,7 +44,7 @@ int main(int argc, char **argv)
     /* Calls the command line parser */
     parse_args(argc, argv);
     
-    /* Initialize occupancy grid */
+    /* Initialize occupancy grid. Alter with much caution! */
     #if USE_OCCUPANCY_GRID == 1
 	    double lower_left[2] = {-4.0, -4.0};
 	    double upper_right[2] = {4.0, 4.0};
@@ -60,7 +63,7 @@ int main(int argc, char **argv)
         if(!check_robot_connection(robot, pp, 20)) 
             exit(-2);
   
-        /* Open a log file with name based on current time */
+        /* Open a log file with name based on current time. */
         char filename[150];
         time_t now = time(NULL);
         strftime(filename, 150, "%Y%m%d.%H.%M_log.csv", gmtime(&now));
@@ -93,7 +96,7 @@ int main(int argc, char **argv)
                 that we're impacting or about to impact an object. Abort if 
                 that is true. */
             for (int i=0; i<n; i++){
-                if (range_data[i] < 0.1){
+                if (range_data[i] < MIN_WALL_DIST){
                     printf("Impact detected at bearing %f! Abort!\n", 
                            bearing_data[i]);
                     not_done = false;
@@ -103,10 +106,10 @@ int main(int argc, char **argv)
             /* Update occupancy map */
             oc.addScan(pose, n, &bearing_data[0], &range_data[0], OCC_MAX_RANGE);
 
-            /* Update movement */
+            /* Update movement. This'll update speed & turnrate. */
             if (not_done){
                 not_done = figure_out_movement(&speed, &turnrate, range_data, 
-                                               bearing_data, n, pose, oc, false);
+                                               bearing_data, n, pose, oc, USE_VECTOR_FIELD);
 
             } else {
                 speed = 0.0;
@@ -115,9 +118,6 @@ int main(int argc, char **argv)
             
             /* If this is a multiple-of-five timestep, log out pose in csv:
                [ poseX, poseY, poseTheta ] */
-            /* And print occ map */
-            // oc.printPPM(79, 23, pose, true);
-            // printf("Speed: %f, turn: %f\n", speed, turnrate);
             if (time_step%5==0){
                 //Write out to our log file
                 fprintf(log_file, "%f, %f, %f", pose[POSE_X], pose[POSE_Y], 
