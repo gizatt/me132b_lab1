@@ -8,24 +8,21 @@ moderate-sized obstacle in an otherwise spacious room, using player/stage
 for interface (and simulation).
 
 Project status:
-Successfully (or perhaps "successfully") demo'd to Mary on 20130514.
++Successfully (or perhaps "successfully") demo'd to Mary on 20130514.
 
 BUILD AND TEST INSTRUCTIONS:
-============================
+----------------------------
 
 Making is as simple as:
-"make"
-(though "make clean" to clear things out on your end first doesn't
-hurt)
+'make clean all'
 
 Running in simulation:
-launch player with "player -p <port> ./configs/lab.cfg"
-launch robot with "./lab1 -p <port>""
+'player -p <port> ./configs/lab.cfg"
+launch robot with "./lab1 -p <port>'
 
 Running in lab:
-launch player on Honolulu (or equiv) with
-"player ~/configs/pioneer2_laser.cfg" (or something like that)
-launch robot with "./lab1"
+'player ~/configs/pioneer2_laser.cfg //or something like that
+./lab1'
 
 Note that both of these sometimes don't maange to connect or
 initialize quite right -- operation at that point is pretty
@@ -34,51 +31,51 @@ work, usually.
 
 
 INCLUDED FILES:
-===============
+---------------
 
 All files that we've done a lot of work in have extensive file and
 function headers that should provide adequate guidance, but at the
 highest level, here's how things work:
 
-lab1.cc is the main loop, which manages connections to player/stage,
++ lab1.cc is the main loop, which manages connections to player/stage,
 extracting sensor data, calling functions to update occupancy map and
 do navigation.
 
-lab1.h includes control constants for pretty much every part of the
++ lab1.h includes control constants for pretty much every part of the
 project. Specifically relevant to the demo are DANGER_MAX_THRESH and 
 TRAVERSE_MAX_THRESH, which dictate the closest and farthest distances we're
 okay navigating from an obstacle; modifications to just those are are all
 that's necessary to change navigating around the gap, and through it,
 in the demo setup we were given~
 
-cmdline_parsing.cc,.h, and common_functions.cc,.h were supplied to us
++ cmdline_parsing.cc,.h, and common_functions.cc,.h were supplied to us
 in ME132a labs, and just handle routine parts of dealing with player/
 stage and such.
 
-occupancy_grid.cc/.h: Manages occupancy grid. A shell of this file
++ occupancy_grid.cc/.h: Manages occupancy grid. A shell of this file
 was provided, but we've expanded it quite liberally: it now does
 c-space approximation, console-based (ASCII-based) rendering of the
 entire (or just local) occupancy grid, and has a lot of helpers for
 navigation. (See far below for an example of these renderings
 and some guidance on how to interpret them.)
 
-pathfind.cc/.h: Manages pathfinding / navigation. Manages a state
++ pathfind.cc/.h: Manages pathfinding / navigation. Manages a state
 machine deciding the robot's current subgoal at any moment, which
 calls a range of helper functions to do different parts of the
 navigation -- the file header is particularly lengthy on this
 one ;)
 
-Makefile -- makes... files.
++ Makefile -- makes... files.
 
-./configs: contains various files for running a simulation. The
++ ./configs: contains various files for running a simulation. The
 included world (lab.png) is good for practicing the close-follow
 (going through narrow gaps) mode of operation, but doesn't really
 work for the other mode.
 
-./unused_files: old test files and things that we used in
++ ./unused_files: old test files and things that we used in
 development but aren't part of the core suite.
 
-./misc_logs: logs that we've help on to in case we care to
++ ./misc_logs: logs that we've help on to in case we care to
 look at them later. Logs currently aren't very informative --
 most of the important info just goes to console. (This should
 be remedied some time in the future, but presently problems
@@ -89,7 +86,7 @@ useful or worth the effort to set up and read.)
 
 
 EXAMPLE OUTPUT OF OCCUPANCY GRID RENDERING
-==========================================
+------------------------------------------
 
 As discussed in occupancy.cc, the occupancy grid (and corresponding
 c-grid) can be rendered to the console at any moment via helper functions.
