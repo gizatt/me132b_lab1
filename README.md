@@ -1,6 +1,6 @@
-******************************************************************************
-********************************me132b_lab1***********************************
-******************************************************************************
+me132b_lab1
+===========
+
 ME132b Lab 1 Repository for Team [Matthew Dughi, Tiffany Huang, Gregory Izatt]
 
 Code base for navigating a Pioneer2 (with laser scanner) around a 
@@ -10,9 +10,8 @@ for interface (and simulation).
 Project status:
 Successfully (or perhaps "successfully") demo'd to Mary on 20130514.
 
-******************************************************************************
 BUILD AND TEST INSTRUCTIONS:
-******************************************************************************
+============================
 
 Making is as simple as:
 "make"
@@ -34,9 +33,8 @@ much undefined. All it takes is trying again to get things to
 work, usually.
 
 
-******************************************************************************
 INCLUDED FILES:
-******************************************************************************
+===============
 
 All files that we've done a lot of work in have extensive file and
 function headers that should provide adequate guidance, but at the
@@ -89,9 +87,9 @@ see and deal with immediately) that a log isn't terribly
 useful or worth the effort to set up and read.)
 
 
-******************************************************************************
+
 EXAMPLE OUTPUT OF OCCUPANCY GRID RENDERING
-******************************************************************************
+==========================================
 
 As discussed in occupancy.cc, the occupancy grid (and corresponding
 c-grid) can be rendered to the console at any moment via helper functions.
@@ -127,7 +125,8 @@ the same demarcations, but not requiring any downsampling.
 Example renderings:
 
 Global:
-/*****************************************************************************
+'
+
 
 
                        ##################################
@@ -155,7 +154,7 @@ Global:
 
 
 
-*****************************************************************************/
+'
 A global rendering of the robot currently positioned between
 two obstacles. You can see the L-shaped primary obstacle
 on the left, and a square obstacle on the right. You can also
@@ -169,7 +168,7 @@ before we try to drive into it.
 
 
 Local:
-/*****************************************************************************
+'
                             #########     ##########          ###########
                            ###########   ############          #########
                          ##############################
@@ -201,7 +200,7 @@ Local:
               #####!!!!8!!!!#####                         #####!!!!88!!!!!####
               #####!!!!8!!!!#####                         #####!!!!888!!!!####
               #####!!!!8!!!!#####                        ######!!!!!!8!!!!####
-*****************************************************************************/
+'
 A local rendering after the robot has traversed between the two
 obstacles, scanned, as is planning on moving up to a point
 outside of them. Note that the choice of path we've made
